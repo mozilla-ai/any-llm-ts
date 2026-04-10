@@ -35,6 +35,10 @@
     "openai",
     "any-llm"
   ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mozilla-ai/any-llm-ts"
+  },
   "license": "Apache-2.0",
   "engines": {
     "node": ">=18"
