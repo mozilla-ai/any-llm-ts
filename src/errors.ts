@@ -21,8 +21,7 @@ export class AnyLLMError extends Error {
   readonly providerName?: string;
 
   constructor(options: AnyLLMErrorOptions = {}) {
-    const message =
-      options.message ?? (new.target as typeof AnyLLMError).defaultMessage;
+    const message = options.message ?? (new.target as typeof AnyLLMError).defaultMessage;
     super(message);
     this.name = new.target.name;
     this.statusCode = options.statusCode;
@@ -73,6 +72,5 @@ export class UpstreamProviderError extends AnyLLMError {
 
 /** Raised when the gateway times out waiting for the upstream provider (HTTP 504). */
 export class GatewayTimeoutError extends AnyLLMError {
-  static override defaultMessage =
-    "Gateway timeout waiting for upstream provider";
+  static override defaultMessage = "Gateway timeout waiting for upstream provider";
 }

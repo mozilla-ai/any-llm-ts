@@ -9,8 +9,8 @@ permissions:
   id-token: write
 
 jobs:
-  test:
-    name: Test
+  check:
+    name: Lint, Typecheck & Test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -22,13 +22,15 @@ jobs:
 
       - run: npm ci
 
+      - run: npm run lint
+
       - run: npm run typecheck
 
       - run: npm run test:unit
 
   publish:
     name: Publish
-    needs: test
+    needs: check
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

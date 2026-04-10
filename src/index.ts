@@ -18,7 +18,7 @@
  */
 
 export { GatewayClient } from "./client.js";
-
+export type { AnyLLMErrorOptions } from "./errors.js";
 export {
   AnyLLMError,
   AuthenticationError,
@@ -30,17 +30,13 @@ export {
 } from "./errors.js";
 
 export type {
-  AnyLLMErrorOptions,
-} from "./errors.js";
-
-export type {
-  GatewayClientOptions,
   ChatCompletion,
   ChatCompletionChunk,
   ChatCompletionCreateParams,
   ChatCompletionMessageParam,
   CreateEmbeddingResponse,
   EmbeddingCreateParams,
+  GatewayClientOptions,
   Model,
   Response,
   ResponseCreateParams,

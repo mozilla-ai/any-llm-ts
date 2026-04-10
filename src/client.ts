@@ -6,7 +6,6 @@
  */
 
 import OpenAI, { APIError } from "openai";
-import type { Stream } from "openai/streaming";
 import type {
   ChatCompletion,
   ChatCompletionChunk,
@@ -14,10 +13,7 @@ import type {
   ChatCompletionCreateParamsNonStreaming,
   ChatCompletionCreateParamsStreaming,
 } from "openai/resources/chat/completions";
-import type {
-  CreateEmbeddingResponse,
-  EmbeddingCreateParams,
-} from "openai/resources/embeddings";
+import type { CreateEmbeddingResponse, EmbeddingCreateParams } from "openai/resources/embeddings";
 import type { Model } from "openai/resources/models";
 import type {
   Response,
@@ -25,9 +21,9 @@ import type {
   ResponseCreateParamsStreaming,
   ResponseStreamEvent,
 } from "openai/resources/responses/responses";
+import type { Stream } from "openai/streaming";
 
 import {
-  AnyLLMError,
   AuthenticationError,
   GatewayTimeoutError,
   InsufficientFundsError,
@@ -45,10 +41,7 @@ const ENV_API_KEY = "GATEWAY_API_KEY";
 const ENV_PLATFORM_TOKEN = "GATEWAY_PLATFORM_TOKEN";
 
 /** Map of HTTP status codes to error constructors (for simple 1:1 mappings). */
-const STATUS_TO_ERROR: Record<
-  number,
-  typeof AuthenticationError | typeof ModelNotFoundError
-> = {
+const STATUS_TO_ERROR: Record<number, typeof AuthenticationError | typeof ModelNotFoundError> = {
   401: AuthenticationError,
   403: AuthenticationError,
   404: ModelNotFoundError,
@@ -102,8 +95,7 @@ export class GatewayClient {
       ? rawBase
       : `${rawBase.replace(/\/+$/, "")}/v1`;
 
-    const platformToken =
-      options.platformToken ?? process.env[ENV_PLATFORM_TOKEN];
+    const platformToken = options.platformToken ?? process.env[ENV_PLATFORM_TOKEN];
     const apiKey = options.apiKey ?? process.env[ENV_API_KEY] ?? "";
 
     const headers: Record<string, string> = { ...options.defaultHeaders };
@@ -142,9 +134,7 @@ export class GatewayClient {
   /**
    * Create a chat completion (non-streaming).
    */
-  async completion(
-    params: ChatCompletionCreateParamsNonStreaming,
-  ): Promise<ChatCompletion>;
+  async completion(params: ChatCompletionCreateParamsNonStreaming): Promise<ChatCompletion>;
 
   /**
    * Create a chat completion (streaming).
@@ -178,16 +168,12 @@ export class GatewayClient {
   /**
    * Create a response (non-streaming).
    */
-  async response(
-    params: ResponseCreateParamsNonStreaming,
-  ): Promise<Response>;
+  async response(params: ResponseCreateParamsNonStreaming): Promise<Response>;
 
   /**
    * Create a response (streaming).
    */
-  async response(
-    params: ResponseCreateParamsStreaming,
-  ): Promise<Stream<ResponseStreamEvent>>;
+  async response(params: ResponseCreateParamsStreaming): Promise<Stream<ResponseStreamEvent>>;
 
   /**
    * Create a response using the OpenAI Responses API.
@@ -200,7 +186,8 @@ export class GatewayClient {
     params: ResponseCreateParamsNonStreaming | ResponseCreateParamsStreaming,
   ): Promise<Response | Stream<ResponseStreamEvent>> {
     try {
-      return await this.openai.responses.create(params as any);
+      // The union type doesn't match the SDK's overloaded signatures directly.
+      return await this.openai.responses.create(params as ResponseCreateParamsNonStreaming);
     } catch (error) {
       this.handleError(error);
       throw error;
@@ -212,9 +199,7 @@ export class GatewayClient {
   /**
    * Create embeddings for the given input.
    */
-  async embedding(
-    params: EmbeddingCreateParams,
-  ): Promise<CreateEmbeddingResponse> {
+  async embedding(params: EmbeddingCreateParams): Promise<CreateEmbeddingResponse> {
     try {
       return await this.openai.embeddings.create(params);
     } catch (error) {

@@ -1,12 +1,12 @@
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "vitest";
 import {
   AnyLLMError,
   AuthenticationError,
-  ModelNotFoundError,
+  GatewayTimeoutError,
   InsufficientFundsError,
+  ModelNotFoundError,
   RateLimitError,
   UpstreamProviderError,
-  GatewayTimeoutError,
 } from "../../src/errors.js";
 
 describe("AnyLLMError", () => {

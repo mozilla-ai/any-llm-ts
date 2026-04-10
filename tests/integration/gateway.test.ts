@@ -9,13 +9,12 @@
  * Run with: npm run test:integration
  */
 
-import { describe, it, expect, beforeAll } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 import { GatewayClient } from "../../src/client.js";
 import { ModelNotFoundError } from "../../src/errors.js";
 
 const API_BASE = process.env.GATEWAY_API_BASE ?? "http://localhost:8000";
-const TOKEN =
-  process.env.GATEWAY_PLATFORM_TOKEN ?? "tk_apwjM8KmAhOlfAUDiAWO6bmxsFuPeGqO";
+const TOKEN = process.env.GATEWAY_PLATFORM_TOKEN ?? "tk_apwjM8KmAhOlfAUDiAWO6bmxsFuPeGqO";
 const MODEL = process.env.GATEWAY_TEST_MODEL ?? "openai:gpt-4o-mini";
 
 // Check gateway availability before loading the test suite.

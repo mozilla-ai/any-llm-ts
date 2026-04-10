@@ -1,14 +1,14 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import OpenAI, { APIError } from "openai";
+import { APIError } from "openai";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { GatewayClient } from "../../src/client.js";
 import {
+  AnyLLMError,
   AuthenticationError,
-  ModelNotFoundError,
+  GatewayTimeoutError,
   InsufficientFundsError,
+  ModelNotFoundError,
   RateLimitError,
   UpstreamProviderError,
-  GatewayTimeoutError,
-  AnyLLMError,
 } from "../../src/errors.js";
 
 // Helpers to build a fake APIError with typed status and headers.
@@ -137,9 +137,7 @@ describe("GatewayClient error handling (platform mode)", () => {
 
   // Helper: mock the openai method to throw an APIError.
   function mockCompletionError(error: Error) {
-    vi.spyOn(client.openai.chat.completions, "create").mockRejectedValue(
-      error,
-    );
+    vi.spyOn(client.openai.chat.completions, "create").mockRejectedValue(error);
   }
 
   it("maps 401 to AuthenticationError", async () => {
@@ -183,9 +181,7 @@ describe("GatewayClient error handling (platform mode)", () => {
   });
 
   it("maps 429 to RateLimitError with retryAfter", async () => {
-    mockCompletionError(
-      makeAPIError(429, "Too Many Requests", { "retry-after": "60" }),
-    );
+    mockCompletionError(makeAPIError(429, "Too Many Requests", { "retry-after": "60" }));
     try {
       await client.completion({
         model: "openai:gpt-4o-mini",
@@ -232,9 +228,7 @@ describe("GatewayClient error handling (platform mode)", () => {
       expect.unreachable("should have thrown");
     } catch (err) {
       expect(err).toBeInstanceOf(AuthenticationError);
-      expect((err as AuthenticationError).message).toContain(
-        "correlation_id=abc-123",
-      );
+      expect((err as AuthenticationError).message).toContain("correlation_id=abc-123");
     }
   });
 
@@ -318,9 +312,7 @@ describe("GatewayClient methods delegate to OpenAI client", () => {
 
   it("completion calls openai.chat.completions.create", async () => {
     const mockResponse = { id: "chatcmpl-123", choices: [] };
-    vi.spyOn(client.openai.chat.completions, "create").mockResolvedValue(
-      mockResponse as any,
-    );
+    vi.spyOn(client.openai.chat.completions, "create").mockResolvedValue(mockResponse as any);
 
     const result = await client.completion({
       model: "openai:gpt-4o-mini",
@@ -335,9 +327,7 @@ describe("GatewayClient methods delegate to OpenAI client", () => {
 
   it("embedding calls openai.embeddings.create", async () => {
     const mockResponse = { data: [], model: "test", usage: {} };
-    vi.spyOn(client.openai.embeddings, "create").mockResolvedValue(
-      mockResponse as any,
-    );
+    vi.spyOn(client.openai.embeddings, "create").mockResolvedValue(mockResponse as any);
 
     const result = await client.embedding({
       model: "openai:text-embedding-3-small",
@@ -348,9 +338,7 @@ describe("GatewayClient methods delegate to OpenAI client", () => {
 
   it("response calls openai.responses.create", async () => {
     const mockResponse = { id: "resp-123" };
-    vi.spyOn(client.openai.responses, "create").mockResolvedValue(
-      mockResponse as any,
-    );
+    vi.spyOn(client.openai.responses, "create").mockResolvedValue(mockResponse as any);
 
     const result = await client.response({
       model: "openai:gpt-4o-mini",
@@ -371,9 +359,7 @@ describe("GatewayClient methods delegate to OpenAI client", () => {
         for (const m of mockModels) yield m;
       },
     };
-    vi.spyOn(client.openai.models, "list").mockResolvedValue(
-      mockPage as any,
-    );
+    vi.spyOn(client.openai.models, "list").mockResolvedValue(mockPage as any);
 
     const result = await client.listModels();
     expect(result).toEqual(mockModels);
@@ -404,9 +390,7 @@ describe("GatewayClient methods delegate to OpenAI client", () => {
   });
 
   it("error mapping applies to listModels method too", async () => {
-    vi.spyOn(client.openai.models, "list").mockRejectedValue(
-      makeAPIError(502, "Bad Gateway"),
-    );
+    vi.spyOn(client.openai.models, "list").mockRejectedValue(makeAPIError(502, "Bad Gateway"));
     await expect(client.listModels()).rejects.toThrow(UpstreamProviderError);
   });
 });
