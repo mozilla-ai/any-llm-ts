@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   AnyLLMError,
   AuthenticationError,
+  BatchNotCompleteError,
   GatewayTimeoutError,
   InsufficientFundsError,
   ModelNotFoundError,
@@ -125,5 +126,44 @@ describe("GatewayTimeoutError", () => {
     const err = new GatewayTimeoutError();
     expect(err.message).toBe("Gateway timeout waiting for upstream provider");
     expect(err.name).toBe("GatewayTimeoutError");
+  });
+});
+
+describe("BatchNotCompleteError", () => {
+  it("has correct defaultMessage", () => {
+    const err = new BatchNotCompleteError();
+    expect(err.message).toBe("Batch is not yet complete");
+    expect(err.name).toBe("BatchNotCompleteError");
+  });
+
+  it("stores batchId and batchStatus", () => {
+    const err = new BatchNotCompleteError({
+      batchId: "batch_abc123",
+      batchStatus: "in_progress",
+    });
+    expect(err.batchId).toBe("batch_abc123");
+    expect(err.batchStatus).toBe("in_progress");
+  });
+
+  it("batchId and batchStatus are undefined by default", () => {
+    const err = new BatchNotCompleteError();
+    expect(err.batchId).toBeUndefined();
+    expect(err.batchStatus).toBeUndefined();
+  });
+
+  it("is an instance of AnyLLMError", () => {
+    const err = new BatchNotCompleteError();
+    expect(err).toBeInstanceOf(AnyLLMError);
+    expect(err).toBeInstanceOf(Error);
+  });
+
+  it("stores statusCode and providerName", () => {
+    const err = new BatchNotCompleteError({
+      statusCode: 409,
+      providerName: "gateway",
+      batchId: "batch_xyz",
+    });
+    expect(err.statusCode).toBe(409);
+    expect(err.providerName).toBe("gateway");
   });
 });
