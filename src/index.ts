@@ -36,6 +36,7 @@ export type {
   BatchResult,
   BatchResultError,
   BatchResultItem,
+  BatchWithProvider,
   ChatCompletion,
   ChatCompletionChunk,
   ChatCompletionCreateParams,

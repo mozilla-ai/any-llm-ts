@@ -36,6 +36,7 @@ import {
 } from "./errors.js";
 import type {
   BatchResult,
+  BatchWithProvider,
   CreateBatchParams,
   GatewayClientOptions,
   ListBatchesOptions,
@@ -334,10 +335,10 @@ export class GatewayClient {
    * Create a batch job.
    *
    * @param params - Batch creation parameters including model and requests array.
-   * @returns The created batch object.
+   * @returns The created batch object including the gateway-injected `provider` field.
    */
-  async createBatch(params: CreateBatchParams): Promise<Batch> {
-    return this.batchRequest<Batch>("POST", "/batches", { body: params });
+  async createBatch(params: CreateBatchParams): Promise<BatchWithProvider> {
+    return this.batchRequest<BatchWithProvider>("POST", "/batches", { body: params });
   }
 
   /**

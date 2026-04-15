@@ -466,7 +466,7 @@ describe("GatewayClient batch methods", () => {
       expect((init?.headers as Record<string, string>)["Content-Type"]).toBe("application/json");
     });
 
-    it("returns Batch object", async () => {
+    it("returns BatchWithProvider object including provider field", async () => {
       mockFetch.mockResolvedValue(mockFetchResponse(200, batchResponse));
 
       const result = await client.createBatch({
@@ -476,6 +476,7 @@ describe("GatewayClient batch methods", () => {
 
       expect(result.id).toBe("batch_abc123");
       expect(result.status).toBe("validating");
+      expect(result.provider).toBe("openai");
     });
   });
 

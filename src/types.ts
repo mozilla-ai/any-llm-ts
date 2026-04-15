@@ -7,6 +7,17 @@ import type { ChatCompletion } from "openai/resources/chat/completions";
 
 // Batches
 export type { Batch } from "openai/resources/batches";
+
+import type { Batch } from "openai/resources/batches";
+
+/**
+ * Batch response with the gateway-injected `provider` field.
+ *
+ * The gateway adds a `provider` string to the response on `POST /v1/batches`
+ * (create). The OpenAI `Batch` type does not include this field, so this
+ * intersection type captures it for callers who need it.
+ */
+export type BatchWithProvider = Batch & { provider: string };
 // Re-export OpenAI types that callers will interact with directly.
 // This avoids forcing consumers to install/import 'openai' themselves.
 export type {
