@@ -43,7 +43,7 @@ import type {
 } from "./types.js";
 
 const PROVIDER_NAME = "gateway";
-const GATEWAY_HEADER_NAME = "X-AnyLLM-Key";
+const GATEWAY_HEADER_NAME = "AnyLLM-Key";
 
 const ENV_API_BASE = "GATEWAY_API_BASE";
 const ENV_API_KEY = "GATEWAY_API_KEY";
@@ -63,7 +63,7 @@ const STATUS_TO_ERROR: Record<number, typeof AuthenticationError | typeof ModelN
  *
  * - **Platform mode**: A Bearer token is sent in the standard Authorization
  *   header. Errors are mapped to typed any-llm exceptions.
- * - **Non-platform mode**: An API key is sent via a custom `X-AnyLLM-Key`
+ * - **Non-platform mode**: An API key is sent via a custom `AnyLLM-Key`
  *   header. Errors from the OpenAI SDK pass through unmodified.
  *
  * @example

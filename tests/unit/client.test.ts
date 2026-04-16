@@ -96,13 +96,13 @@ describe("GatewayClient constructor", () => {
       expect(client.platformMode).toBe(false);
     });
 
-    it("sends apiKey via X-AnyLLM-Key header", () => {
+    it("sends apiKey via AnyLLM-Key header", () => {
       const client = new GatewayClient({
         apiBase: "http://localhost:8000",
         apiKey: "my-key",
       });
       expect(client.platformMode).toBe(false);
-      // The X-AnyLLM-Key header is set as a default header on the OpenAI client.
+      // The AnyLLM-Key header is set as a default header on the OpenAI client.
       // We can verify by inspecting the internal _options or defaultHeaders.
       // For this test we just verify the mode is correct.
     });

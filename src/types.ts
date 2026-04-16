@@ -85,7 +85,7 @@ export interface BatchResult {
  * Auth resolution order (mirrors the Python GatewayProvider):
  *  1. Explicit `platformToken` -> platform mode (Bearer token in Authorization header)
  *  2. `GATEWAY_PLATFORM_TOKEN` env var (when no `apiKey`) -> platform mode
- *  3. `apiKey` or `GATEWAY_API_KEY` env var -> non-platform mode (X-AnyLLM-Key header)
+ *  3. `apiKey` or `GATEWAY_API_KEY` env var -> non-platform mode (AnyLLM-Key header)
  *  4. No credentials -> non-platform mode, no auth header
  */
 export interface GatewayClientOptions {
@@ -97,7 +97,7 @@ export interface GatewayClientOptions {
 
   /**
    * API key for non-platform mode.
-   * Sent via the `X-AnyLLM-Key: Bearer <key>` header.
+   * Sent via the `AnyLLM-Key: Bearer <key>` header.
    * Falls back to the `GATEWAY_API_KEY` environment variable.
    */
   apiKey?: string;
