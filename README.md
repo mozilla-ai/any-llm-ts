@@ -179,6 +179,41 @@ const result = await client.embedding({
 console.log(result.data[0].embedding);
 ```
 
+### Moderation
+
+```typescript
+import { GatewayClient, UnsupportedCapabilityError } from "@mozilla-ai/any-llm";
+
+try {
+  const result = await client.moderation({
+    model: "openai:omni-moderation-latest",
+    input: "I want to hurt someone",
+  });
+  if (result.results[0].flagged) {
+    throw new Error("unsafe input");
+  }
+} catch (err) {
+  if (err instanceof UnsupportedCapabilityError) {
+    // The selected provider doesn't offer moderation (e.g. Anthropic).
+    console.error(`${err.provider} does not support ${err.capability}`);
+  } else {
+    throw err;
+  }
+}
+```
+
+To preserve the upstream provider's raw response body, pass
+`includeRaw: true`. Each result then carries a `provider_raw` field:
+
+```typescript
+const result = await client.moderation({
+  model: "openai:omni-moderation-latest",
+  input: "...",
+  includeRaw: true,
+});
+console.log(result.results[0].provider_raw);
+```
+
 ### Listing Models
 
 ```typescript
@@ -211,12 +246,15 @@ try {
 
 | HTTP Status | Error Class | Description |
 |------------|-------------|-------------|
+| 400 (capability) | `UnsupportedCapabilityError` | Selected provider does not support the requested capability (e.g. moderation) |
 | 401, 403 | `AuthenticationError` | Invalid or missing credentials |
 | 402 | `InsufficientFundsError` | Budget or credits exhausted |
 | 404 | `ModelNotFoundError` | Model not found or unavailable |
 | 429 | `RateLimitError` | Rate limit exceeded (includes `retryAfter`) |
 | 502 | `UpstreamProviderError` | Upstream provider unreachable |
 | 504 | `GatewayTimeoutError` | Gateway timed out waiting for provider |
+
+`UnsupportedCapabilityError` surfaces in both platform and non-platform modes; the other mappings are platform-mode only.
 
 ## Why choose `any-llm`?
 
