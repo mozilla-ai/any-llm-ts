@@ -6,6 +6,7 @@
  */
 
 import OpenAI, { APIError } from "openai";
+import type { Batch } from "openai/resources/batches";
 import type {
   ChatCompletion,
   ChatCompletionChunk,
@@ -24,14 +25,22 @@ import type {
 import type { Stream } from "openai/streaming";
 
 import {
+  AnyLLMError,
   AuthenticationError,
+  BatchNotCompleteError,
   GatewayTimeoutError,
   InsufficientFundsError,
   ModelNotFoundError,
   RateLimitError,
   UpstreamProviderError,
 } from "./errors.js";
-import type { GatewayClientOptions } from "./types.js";
+import type {
+  BatchResult,
+  BatchWithProvider,
+  CreateBatchParams,
+  GatewayClientOptions,
+  ListBatchesOptions,
+} from "./types.js";
 
 const PROVIDER_NAME = "gateway";
 const GATEWAY_HEADER_NAME = "X-AnyLLM-Key";
@@ -77,6 +86,12 @@ export class GatewayClient {
 
   /** Whether the client is operating in platform mode. */
   readonly platformMode: boolean;
+
+  /** The resolved base URL (with /v1) for direct HTTP calls. */
+  private readonly baseUrl: string;
+
+  /** Auth headers for batch method direct HTTP calls. */
+  private readonly authHeaders: Record<string, string>;
 
   constructor(options: GatewayClientOptions = {}) {
     const rawBase = options.apiBase ?? process.env[ENV_API_BASE];
@@ -126,6 +141,18 @@ export class GatewayClient {
         defaultHeaders: headers,
         ...options.openaiOptions,
       });
+    }
+
+    // Store for batch method direct HTTP calls
+    this.baseUrl = apiBase;
+    this.authHeaders = {};
+    if (platformToken && !options.apiKey) {
+      this.authHeaders.Authorization = `Bearer ${platformToken}`;
+    } else if (apiKey) {
+      this.authHeaders[GATEWAY_HEADER_NAME] = `Bearer ${apiKey}`;
+    }
+    if (options.defaultHeaders) {
+      Object.assign(this.authHeaders, options.defaultHeaders);
     }
   }
 
@@ -301,4 +328,187 @@ export class GatewayClient {
 
     // Unrecognized status: let the original error propagate.
   }
+
+  // -- Batch operations -----------------------------------------------------
+
+  /**
+   * Create a batch job.
+   *
+   * @param params - Batch creation parameters including model and requests array.
+   * @returns The created batch object including the gateway-injected `provider` field.
+   */
+  async createBatch(params: CreateBatchParams): Promise<BatchWithProvider> {
+    return this.batchRequest<BatchWithProvider>("POST", "/batches", { body: params });
+  }
+
+  /**
+   * Retrieve the status of a batch job.
+   *
+   * @param batchId - The ID of the batch to retrieve.
+   * @param provider - The provider name (e.g., "openai").
+   * @returns The batch object with current status.
+   */
+  async retrieveBatch(batchId: string, provider: string): Promise<Batch> {
+    return this.batchRequest<Batch>(
+      "GET",
+      `/batches/${encodeURIComponent(batchId)}?provider=${encodeURIComponent(provider)}`,
+    );
+  }
+
+  /**
+   * Cancel a batch job.
+   *
+   * @param batchId - The ID of the batch to cancel.
+   * @param provider - The provider name (e.g., "openai").
+   * @returns The batch object with updated status.
+   */
+  async cancelBatch(batchId: string, provider: string): Promise<Batch> {
+    return this.batchRequest<Batch>(
+      "POST",
+      `/batches/${encodeURIComponent(batchId)}/cancel?provider=${encodeURIComponent(provider)}`,
+    );
+  }
+
+  /**
+   * List batch jobs for a provider.
+   *
+   * @param provider - The provider name (e.g., "openai").
+   * @param options - Optional pagination parameters.
+   * @returns Array of batch objects.
+   */
+  async listBatches(provider: string, options?: ListBatchesOptions): Promise<Batch[]> {
+    const params = new URLSearchParams({ provider });
+    if (options?.after) params.set("after", options.after);
+    if (options?.limit !== undefined) params.set("limit", String(options.limit));
+    const response = await this.batchRequest<{ data: Batch[] }>(
+      "GET",
+      `/batches?${params.toString()}`,
+    );
+    return response.data;
+  }
+
+  /**
+   * Retrieve the results of a completed batch job.
+   *
+   * @param batchId - The ID of the batch to retrieve results for.
+   * @param provider - The provider name (e.g., "openai").
+   * @returns The batch results containing per-request outcomes.
+   * @throws {BatchNotCompleteError} If the batch is not yet complete.
+   */
+  async retrieveBatchResults(batchId: string, provider: string): Promise<BatchResult> {
+    return this.batchRequest<BatchResult>(
+      "GET",
+      `/batches/${encodeURIComponent(batchId)}/results?provider=${encodeURIComponent(provider)}`,
+    );
+  }
+
+  // -- Batch HTTP helpers ---------------------------------------------------
+
+  /**
+   * Make a direct HTTP request for batch operations.
+   * Unlike completion/embedding methods which use this.openai, batch methods
+   * use direct fetch because the gateway batch API has a custom JSON format.
+   */
+  private async batchRequest<T = unknown>(
+    method: string,
+    path: string,
+    options?: { body?: unknown },
+  ): Promise<T> {
+    const url = `${this.baseUrl}${path}`;
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+      ...this.authHeaders,
+    };
+
+    const response = await fetch(url, {
+      method,
+      headers,
+      body: options?.body ? JSON.stringify(options.body) : undefined,
+    });
+
+    if (!response.ok) {
+      await this.handleBatchError(response);
+    }
+
+    return (await response.json()) as T;
+  }
+
+  /**
+   * Map batch HTTP errors to typed SDK errors.
+   * This is used by batch methods which use direct fetch (not this.openai).
+   */
+  private async handleBatchError(response: globalThis.Response): Promise<never> {
+    const body = await response.json().catch(() => ({}));
+    const detail = (body as Record<string, unknown>)?.detail ?? response.statusText;
+    const message = typeof detail === "string" ? detail : response.statusText;
+    const correlationId = response.headers.get("x-correlation-id");
+    const fullMessage = correlationId ? `${message} (correlation_id=${correlationId})` : message;
+
+    switch (response.status) {
+      case 401:
+      case 403:
+        throw new AuthenticationError({
+          message: fullMessage,
+          statusCode: response.status,
+          providerName: PROVIDER_NAME,
+        });
+      case 404:
+        throw new AnyLLMError({
+          message: fullMessage.includes("not found")
+            ? fullMessage
+            : `This gateway does not support batch operations. Upgrade your gateway. (${fullMessage})`,
+          statusCode: 404,
+          providerName: PROVIDER_NAME,
+        });
+      case 409:
+        throw new BatchNotCompleteError({
+          message: fullMessage,
+          statusCode: 409,
+          providerName: PROVIDER_NAME,
+          batchId: extractBatchId(message),
+          batchStatus: extractStatus(message),
+        });
+      case 422:
+        throw new AnyLLMError({
+          message: fullMessage,
+          statusCode: 422,
+          providerName: PROVIDER_NAME,
+        });
+      case 429:
+        throw new RateLimitError({
+          message: fullMessage,
+          statusCode: 429,
+          providerName: PROVIDER_NAME,
+          retryAfter: response.headers.get("retry-after") ?? undefined,
+        });
+      case 502:
+        throw new UpstreamProviderError({
+          message: fullMessage,
+          statusCode: 502,
+          providerName: PROVIDER_NAME,
+        });
+      case 504:
+        throw new GatewayTimeoutError({
+          message: fullMessage,
+          statusCode: 504,
+          providerName: PROVIDER_NAME,
+        });
+      default:
+        throw new AnyLLMError({
+          message: fullMessage,
+          statusCode: response.status,
+          providerName: PROVIDER_NAME,
+        });
+    }
+  }
+}
+
+function extractBatchId(message: string): string | undefined {
+  const match = message.match(/Batch '([^']+)'/);
+  return match?.[1];
+}
+
+function extractStatus(message: string): string | undefined {
+  const match = message.match(/status: (\w+)/);
+  return match?.[1];
 }

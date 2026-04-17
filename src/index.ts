@@ -22,6 +22,7 @@ export type { AnyLLMErrorOptions } from "./errors.js";
 export {
   AnyLLMError,
   AuthenticationError,
+  BatchNotCompleteError,
   GatewayTimeoutError,
   InsufficientFundsError,
   ModelNotFoundError,
@@ -30,13 +31,21 @@ export {
 } from "./errors.js";
 
 export type {
+  Batch,
+  BatchRequestItem,
+  BatchResult,
+  BatchResultError,
+  BatchResultItem,
+  BatchWithProvider,
   ChatCompletion,
   ChatCompletionChunk,
   ChatCompletionCreateParams,
   ChatCompletionMessageParam,
+  CreateBatchParams,
   CreateEmbeddingResponse,
   EmbeddingCreateParams,
   GatewayClientOptions,
+  ListBatchesOptions,
   Model,
   Response,
   ResponseCreateParams,

@@ -3,7 +3,21 @@
  */
 
 import type OpenAI from "openai";
+import type { ChatCompletion } from "openai/resources/chat/completions";
 
+// Batches
+export type { Batch } from "openai/resources/batches";
+
+import type { Batch } from "openai/resources/batches";
+
+/**
+ * Batch response with the gateway-injected `provider` field.
+ *
+ * The gateway adds a `provider` string to the response on `POST /v1/batches`
+ * (create). The OpenAI `Batch` type does not include this field, so this
+ * intersection type captures it for callers who need it.
+ */
+export type BatchWithProvider = Batch & { provider: string };
 // Re-export OpenAI types that callers will interact with directly.
 // This avoids forcing consumers to install/import 'openai' themselves.
 export type {
@@ -13,13 +27,11 @@ export type {
   ChatCompletionCreateParams,
   ChatCompletionMessageParam,
 } from "openai/resources/chat/completions";
-
 // Embeddings
 export type {
   CreateEmbeddingResponse,
   EmbeddingCreateParams,
 } from "openai/resources/embeddings";
-
 // Models
 export type { Model } from "openai/resources/models";
 
@@ -32,6 +44,40 @@ export type {
 
 // Streaming
 export type { Stream } from "openai/streaming";
+
+// -- Batch types ------------------------------------------------------------
+
+export interface BatchRequestItem {
+  custom_id: string;
+  body: Record<string, unknown>;
+}
+
+export interface CreateBatchParams {
+  model: string;
+  requests: BatchRequestItem[];
+  completion_window?: string;
+  metadata?: Record<string, string>;
+}
+
+export interface ListBatchesOptions {
+  after?: string;
+  limit?: number;
+}
+
+export interface BatchResultError {
+  code: string;
+  message: string;
+}
+
+export interface BatchResultItem {
+  custom_id: string;
+  result?: ChatCompletion;
+  error?: BatchResultError;
+}
+
+export interface BatchResult {
+  results: BatchResultItem[];
+}
 
 /**
  * Options for constructing a {@link GatewayClient}.

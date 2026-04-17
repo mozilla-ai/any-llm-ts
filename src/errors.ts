@@ -74,3 +74,16 @@ export class UpstreamProviderError extends AnyLLMError {
 export class GatewayTimeoutError extends AnyLLMError {
   static override defaultMessage = "Gateway timeout waiting for upstream provider";
 }
+
+/** Raised when attempting to retrieve results for a batch that is not yet complete (HTTP 409). */
+export class BatchNotCompleteError extends AnyLLMError {
+  static override defaultMessage = "Batch is not yet complete";
+  readonly batchId?: string;
+  readonly batchStatus?: string;
+
+  constructor(options: AnyLLMErrorOptions & { batchId?: string; batchStatus?: string } = {}) {
+    super(options);
+    this.batchId = options.batchId;
+    this.batchStatus = options.batchStatus;
+  }
+}
