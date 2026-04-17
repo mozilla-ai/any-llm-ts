@@ -32,6 +32,14 @@ export type {
   CreateEmbeddingResponse,
   EmbeddingCreateParams,
 } from "openai/resources/embeddings";
+
+// Moderation — re-exported from the OpenAI SDK for the default path.
+export type {
+  Moderation,
+  ModerationCreateParams,
+  ModerationCreateResponse,
+} from "openai/resources/moderations";
+
 // Models
 export type { Model } from "openai/resources/models";
 
@@ -121,4 +129,28 @@ export interface GatewayClientOptions {
     ConstructorParameters<typeof OpenAI>[0],
     "apiKey" | "baseURL" | "defaultHeaders"
   >;
+}
+
+/**
+ * Extended moderation result with optional `provider_raw`. Returned by
+ * {@link GatewayClient.moderation} only when the caller passes
+ * `{ includeRaw: true }`.
+ */
+export interface ModerationResultExt {
+  category_applied_input_types?: Record<string, string[]>;
+  category_scores: Record<string, number>;
+  categories: Record<string, boolean>;
+  flagged: boolean;
+  provider_raw?: unknown;
+}
+
+/**
+ * Extended moderation response shape used when `includeRaw: true` is
+ * requested. Identical to OpenAI's shape but with {@link ModerationResultExt}
+ * elements that preserve the provider's raw response body.
+ */
+export interface ModerationResponseExt {
+  id: string;
+  model: string;
+  results: ModerationResultExt[];
 }
