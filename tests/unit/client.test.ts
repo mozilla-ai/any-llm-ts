@@ -487,7 +487,7 @@ describe("GatewayClient moderation includeRaw path", () => {
     expect(init.method).toBe("POST");
     const headers = init.headers as Record<string, string>;
     expect(headers["Content-Type"]).toBe("application/json");
-    expect(headers["X-AnyLLM-Key"]).toBe("Bearer k");
+    expect(headers["AnyLLM-Key"]).toBe("Bearer k");
     const body = JSON.parse(init.body as string);
     expect(body).not.toHaveProperty("includeRaw");
     expect(body).toMatchObject({
@@ -522,7 +522,7 @@ describe("GatewayClient moderation includeRaw path", () => {
     const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     const headers = init.headers as Record<string, string>;
     expect(headers.Authorization).toBe("Bearer tk_123");
-    expect(headers["X-AnyLLM-Key"]).toBeUndefined();
+    expect(headers["AnyLLM-Key"]).toBeUndefined();
   });
 
   it("maps a non-OK raw response to UnsupportedCapabilityError", async () => {
