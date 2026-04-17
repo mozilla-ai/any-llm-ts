@@ -32,6 +32,7 @@ import {
   InsufficientFundsError,
   ModelNotFoundError,
   RateLimitError,
+  UnsupportedCapabilityError,
   UpstreamProviderError,
 } from "./errors.js";
 import type {
@@ -40,6 +41,9 @@ import type {
   CreateBatchParams,
   GatewayClientOptions,
   ListBatchesOptions,
+  ModerationCreateParams,
+  ModerationCreateResponse,
+  ModerationResponseExt,
 } from "./types.js";
 
 const PROVIDER_NAME = "gateway";
@@ -87,8 +91,14 @@ export class GatewayClient {
   /** Whether the client is operating in platform mode. */
   readonly platformMode: boolean;
 
-  /** The resolved base URL (with /v1) for direct HTTP calls. */
-  private readonly baseUrl: string;
+  /** Resolved gateway base URL (including `/v1` suffix). */
+  private readonly baseURL: string;
+
+  /** API key for non-platform mode, if set. */
+  private readonly apiKey?: string;
+
+  /** Platform token for platform mode, if set. */
+  private readonly platformToken?: string;
 
   /** Auth headers for batch method direct HTTP calls. */
   private readonly authHeaders: Record<string, string>;
@@ -110,6 +120,8 @@ export class GatewayClient {
       ? rawBase
       : `${rawBase.replace(/\/+$/, "")}/v1`;
 
+    this.baseURL = apiBase;
+
     const platformToken = options.platformToken ?? process.env[ENV_PLATFORM_TOKEN];
     const apiKey = options.apiKey ?? process.env[ENV_API_KEY] ?? "";
 
@@ -121,6 +133,7 @@ export class GatewayClient {
     // 3. Otherwise -> non-platform mode
     if (platformToken && !options.apiKey) {
       this.platformMode = true;
+      this.platformToken = platformToken;
       this.openai = new OpenAI({
         apiKey: platformToken,
         baseURL: apiBase,
@@ -130,6 +143,7 @@ export class GatewayClient {
     } else {
       this.platformMode = false;
       if (apiKey) {
+        this.apiKey = apiKey;
         headers[GATEWAY_HEADER_NAME] = `Bearer ${apiKey}`;
       }
       // In non-platform mode we still need to pass *some* API key to the
@@ -143,8 +157,7 @@ export class GatewayClient {
       });
     }
 
-    // Store for batch method direct HTTP calls
-    this.baseUrl = apiBase;
+    // Store auth headers for batch method direct HTTP calls.
     this.authHeaders = {};
     if (platformToken && !options.apiKey) {
       this.authHeaders.Authorization = `Bearer ${platformToken}`;
@@ -257,14 +270,18 @@ export class GatewayClient {
   // -- Error handling -------------------------------------------------------
 
   /**
-   * Convert OpenAI APIError to typed any-llm exceptions in platform mode.
+   * Convert OpenAI APIError to typed any-llm exceptions.
+   *
+   * Most mappings only apply in platform mode; in non-platform mode the
+   * original error propagates unchanged. The one exception is
+   * {@link UnsupportedCapabilityError}, which is a logical error (the
+   * selected provider cannot perform the requested capability) and
+   * therefore surfaces in both modes.
    *
    * Extracts `Retry-After` and `X-Correlation-ID` response headers when
-   * available. In non-platform mode this is a no-op and the original error
-   * propagates unchanged.
+   * available.
    */
   private handleError(error: unknown): void {
-    if (!this.platformMode) return;
     if (!(error instanceof APIError)) return;
 
     const status = error.status;
@@ -278,6 +295,23 @@ export class GatewayClient {
     if (correlationId) {
       detail = `${detail} (correlation_id=${correlationId})`;
     }
+
+    // Unsupported-capability is a logical error surfaced regardless of mode.
+    if (status === 400 && detail.includes("does not support moderation")) {
+      const provider = this.parseUnsupportedProvider(detail);
+      const capability = detail.includes("multimodal") ? "multimodal_moderation" : "moderation";
+      throw new UnsupportedCapabilityError({
+        message: detail,
+        statusCode: status,
+        originalError: error,
+        providerName: PROVIDER_NAME,
+        provider,
+        capability,
+      });
+    }
+
+    // The rest of the mappings only apply in platform mode.
+    if (!this.platformMode) return;
 
     const ErrorClass = STATUS_TO_ERROR[status];
     if (ErrorClass) {
@@ -327,6 +361,20 @@ export class GatewayClient {
     }
 
     // Unrecognized status: let the original error propagate.
+  }
+
+  /**
+   * Parse the provider name out of a gateway 400 detail string like
+   * `"Provider anthropic does not support moderation"`. Returns
+   * `"unknown"` if the phrasing does not match.
+   */
+  private parseUnsupportedProvider(detail: string): string {
+    const prefix = "Provider ";
+    if (!detail.startsWith(prefix)) return "unknown";
+    const rest = detail.slice(prefix.length);
+    const end = rest.indexOf(" does not");
+    if (end <= 0) return "unknown";
+    return rest.slice(0, end);
   }
 
   // -- Batch operations -----------------------------------------------------
@@ -414,7 +462,7 @@ export class GatewayClient {
     path: string,
     options?: { body?: unknown },
   ): Promise<T> {
-    const url = `${this.baseUrl}${path}`;
+    const url = `${this.baseURL}${path}`;
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
       ...this.authHeaders,
