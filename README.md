@@ -113,7 +113,7 @@ const client = new GatewayClient({
 
 #### Non-Platform Mode
 
-Sends the API key via a custom `X-AnyLLM-Key` header:
+Sends the API key via a custom `AnyLLM-Key` header:
 
 ```typescript
 const client = new GatewayClient({

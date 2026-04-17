@@ -96,13 +96,13 @@ describe("GatewayClient constructor", () => {
       expect(client.platformMode).toBe(false);
     });
 
-    it("sends apiKey via X-AnyLLM-Key header", () => {
+    it("sends apiKey via AnyLLM-Key header", () => {
       const client = new GatewayClient({
         apiBase: "http://localhost:8000",
         apiKey: "my-key",
       });
       expect(client.platformMode).toBe(false);
-      // The X-AnyLLM-Key header is set as a default header on the OpenAI client.
+      // The AnyLLM-Key header is set as a default header on the OpenAI client.
       // We can verify by inspecting the internal _options or defaultHeaders.
       // For this test we just verify the mode is correct.
     });
@@ -758,7 +758,7 @@ describe("GatewayClient batch auth modes", () => {
     vi.unstubAllGlobals();
   });
 
-  it("uses X-AnyLLM-Key header in non-platform mode", async () => {
+  it("uses AnyLLM-Key header in non-platform mode", async () => {
     const client = new GatewayClient({
       apiBase: "http://localhost:8000",
       apiKey: "my-key",
@@ -775,7 +775,7 @@ describe("GatewayClient batch auth modes", () => {
 
     const [, init] = mockFetch.mock.calls[0];
     const headers = init?.headers as Record<string, string>;
-    expect(headers["X-AnyLLM-Key"]).toBe("Bearer my-key");
+    expect(headers["AnyLLM-Key"]).toBe("Bearer my-key");
     expect(headers.Authorization).toBeUndefined();
   });
 
