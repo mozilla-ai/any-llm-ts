@@ -9,6 +9,7 @@ import {
   InsufficientFundsError,
   ModelNotFoundError,
   RateLimitError,
+  UnsupportedCapabilityError,
   UpstreamProviderError,
 } from "../../src/errors.js";
 
@@ -393,6 +394,251 @@ describe("GatewayClient methods delegate to OpenAI client", () => {
   it("error mapping applies to listModels method too", async () => {
     vi.spyOn(client.openai.models, "list").mockRejectedValue(makeAPIError(502, "Bad Gateway"));
     await expect(client.listModels()).rejects.toThrow(UpstreamProviderError);
+  });
+
+  it("moderation calls openai.moderations.create", async () => {
+    const mockResponse = {
+      id: "modr-abc",
+      model: "omni-moderation-latest",
+      results: [{ flagged: true, categories: {}, category_scores: {} }],
+    };
+    const spy = vi
+      .spyOn(client.openai.moderations, "create")
+      // biome-ignore lint/suspicious/noExplicitAny: test mock
+      .mockResolvedValue(mockResponse as any);
+
+    const params = { model: "openai:omni-moderation-latest", input: "hello" };
+    const result = await client.moderation(params);
+
+    expect(spy).toHaveBeenCalledWith(params);
+    expect(result).toBe(mockResponse);
+  });
+
+  it("moderation strips includeRaw from the SDK path", async () => {
+    const spy = vi.spyOn(client.openai.moderations, "create").mockResolvedValue({
+      id: "m",
+      model: "x",
+      results: [],
+      // biome-ignore lint/suspicious/noExplicitAny: test mock
+    } as any);
+
+    await client.moderation({
+      model: "openai:omni-moderation-latest",
+      input: "x",
+      // biome-ignore lint/suspicious/noExplicitAny: includeRaw is an SDK extension
+    } as any);
+    expect(spy.mock.calls[0][0]).not.toHaveProperty("includeRaw");
+  });
+
+  it("error mapping applies to moderation method too", async () => {
+    vi.spyOn(client.openai.moderations, "create").mockRejectedValue(
+      makeAPIError(429, "Rate limited"),
+    );
+    await expect(
+      client.moderation({
+        model: "openai:omni-moderation-latest",
+        input: "x",
+      }),
+    ).rejects.toThrow(RateLimitError);
+  });
+});
+
+describe("GatewayClient moderation includeRaw path", () => {
+  const originalFetch = globalThis.fetch;
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+    vi.restoreAllMocks();
+  });
+
+  it("uses raw fetch (not the openai SDK) and parses provider_raw", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: new Headers(),
+      json: async () => ({
+        id: "m",
+        model: "x",
+        results: [
+          {
+            flagged: true,
+            categories: {},
+            category_scores: {},
+            provider_raw: { foo: "bar" },
+          },
+        ],
+      }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const client = new GatewayClient({
+      apiBase: "https://gw.example.com",
+      apiKey: "k",
+    });
+    const openaiSpy = vi.spyOn(client.openai.moderations, "create");
+
+    const result = await client.moderation({
+      model: "openai:omni-moderation-latest",
+      input: "x",
+      includeRaw: true,
+      // biome-ignore lint/suspicious/noExplicitAny: includeRaw is an SDK extension
+    } as any);
+
+    expect(openaiSpy).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toContain("/v1/moderations?include_raw=true");
+    expect(init.method).toBe("POST");
+    const headers = init.headers as Record<string, string>;
+    expect(headers["Content-Type"]).toBe("application/json");
+    expect(headers["X-AnyLLM-Key"]).toBe("Bearer k");
+    const body = JSON.parse(init.body as string);
+    expect(body).not.toHaveProperty("includeRaw");
+    expect(body).toMatchObject({
+      model: "openai:omni-moderation-latest",
+      input: "x",
+    });
+    expect((result as { results: { provider_raw?: unknown }[] }).results[0].provider_raw).toEqual({
+      foo: "bar",
+    });
+  });
+
+  it("sends Authorization Bearer header in platform mode", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: new Headers(),
+      json: async () => ({ id: "m", model: "x", results: [] }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const client = new GatewayClient({
+      apiBase: "https://gw.example.com",
+      platformToken: "tk_123",
+    });
+
+    await client.moderation({
+      model: "openai:omni-moderation-latest",
+      input: "x",
+      includeRaw: true,
+      // biome-ignore lint/suspicious/noExplicitAny: includeRaw is an SDK extension
+    } as any);
+
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    const headers = init.headers as Record<string, string>;
+    expect(headers.Authorization).toBe("Bearer tk_123");
+    expect(headers["X-AnyLLM-Key"]).toBeUndefined();
+  });
+
+  it("maps a non-OK raw response to UnsupportedCapabilityError", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 400,
+      headers: new Headers(),
+      text: async () =>
+        JSON.stringify({ detail: "Provider anthropic does not support moderation" }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const client = new GatewayClient({
+      apiBase: "https://gw.example.com",
+      platformToken: "tk_123",
+    });
+
+    await expect(
+      client.moderation({
+        model: "anthropic:claude-3-haiku",
+        input: "x",
+        includeRaw: true,
+        // biome-ignore lint/suspicious/noExplicitAny: includeRaw is an SDK extension
+      } as any),
+    ).rejects.toMatchObject({
+      name: "UnsupportedCapabilityError",
+      capability: "moderation",
+      provider: "anthropic",
+    });
+  });
+});
+
+describe("GatewayClient moderation error mapping", () => {
+  it("maps 400 'does not support moderation' to UnsupportedCapabilityError (platform mode)", async () => {
+    const client = new GatewayClient({
+      apiBase: "http://localhost:8000",
+      platformToken: "tk_test",
+    });
+    vi.spyOn(client.openai.moderations, "create").mockRejectedValue(
+      makeAPIError(400, "Provider anthropic does not support moderation"),
+    );
+
+    await expect(
+      client.moderation({
+        model: "anthropic:claude-3-haiku",
+        input: "x",
+      }),
+    ).rejects.toMatchObject({
+      name: "UnsupportedCapabilityError",
+      capability: "moderation",
+      provider: "anthropic",
+    });
+  });
+
+  it("maps 400 'does not support multimodal moderation' to the multimodal capability", async () => {
+    const client = new GatewayClient({
+      apiBase: "http://localhost:8000",
+      platformToken: "tk_test",
+    });
+    vi.spyOn(client.openai.moderations, "create").mockRejectedValue(
+      makeAPIError(400, "Provider mistral does not support multimodal moderation input"),
+    );
+
+    await expect(
+      client.moderation({
+        model: "mistral:mistral-moderation-latest",
+        // biome-ignore lint/suspicious/noExplicitAny: multimodal input mock
+        input: [{ type: "image_url", image_url: { url: "..." } }] as any,
+      }),
+    ).rejects.toMatchObject({
+      name: "UnsupportedCapabilityError",
+      capability: "multimodal_moderation",
+      provider: "mistral",
+    });
+  });
+
+  it("UnsupportedCapabilityError surfaces even in non-platform mode", async () => {
+    const client = new GatewayClient({
+      apiBase: "http://localhost:8000",
+      apiKey: "k",
+    });
+    vi.spyOn(client.openai.moderations, "create").mockRejectedValue(
+      makeAPIError(400, "Provider anthropic does not support moderation"),
+    );
+
+    await expect(
+      client.moderation({
+        model: "anthropic:claude-3-haiku",
+        input: "x",
+      }),
+    ).rejects.toBeInstanceOf(UnsupportedCapabilityError);
+  });
+
+  it("does not map unrelated 400 errors in non-platform mode", async () => {
+    const client = new GatewayClient({
+      apiBase: "http://localhost:8000",
+      apiKey: "k",
+    });
+    const apiErr = makeAPIError(400, "bad request");
+    vi.spyOn(client.openai.moderations, "create").mockRejectedValue(apiErr);
+
+    try {
+      await client.moderation({
+        model: "openai:omni-moderation-latest",
+        input: "x",
+      });
+      expect.unreachable("should have thrown");
+    } catch (err) {
+      expect(err).not.toBeInstanceOf(AnyLLMError);
+      expect(err).toBeInstanceOf(APIError);
+    }
   });
 });
 
