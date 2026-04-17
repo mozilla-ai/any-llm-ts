@@ -27,6 +27,7 @@ export {
   InsufficientFundsError,
   ModelNotFoundError,
   RateLimitError,
+  UnsupportedCapabilityError,
   UpstreamProviderError,
 } from "./errors.js";
 
@@ -47,6 +48,11 @@ export type {
   GatewayClientOptions,
   ListBatchesOptions,
   Model,
+  Moderation,
+  ModerationCreateParams,
+  ModerationCreateResponse,
+  ModerationResponseExt,
+  ModerationResultExt,
   Response,
   ResponseCreateParams,
   ResponseStreamEvent,

@@ -7,6 +7,7 @@ import {
   InsufficientFundsError,
   ModelNotFoundError,
   RateLimitError,
+  UnsupportedCapabilityError,
   UpstreamProviderError,
 } from "../../src/errors.js";
 
@@ -165,5 +166,33 @@ describe("BatchNotCompleteError", () => {
     });
     expect(err.statusCode).toBe(409);
     expect(err.providerName).toBe("gateway");
+  });
+});
+
+describe("UnsupportedCapabilityError", () => {
+  it("uses its own default message", () => {
+    const err = new UnsupportedCapabilityError({
+      capability: "moderation",
+      provider: "anthropic",
+    });
+    expect(err.message).toBe("The selected provider does not support this capability");
+    expect(err.name).toBe("UnsupportedCapabilityError");
+  });
+
+  it("stores capability and provider", () => {
+    const err = new UnsupportedCapabilityError({
+      capability: "multimodal_moderation",
+      provider: "mistral",
+    });
+    expect(err.capability).toBe("multimodal_moderation");
+    expect(err.provider).toBe("mistral");
+  });
+
+  it("is an instance of AnyLLMError", () => {
+    const err = new UnsupportedCapabilityError({
+      capability: "moderation",
+      provider: "anthropic",
+    });
+    expect(err).toBeInstanceOf(AnyLLMError);
   });
 });

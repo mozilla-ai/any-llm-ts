@@ -87,3 +87,27 @@ export class BatchNotCompleteError extends AnyLLMError {
     this.batchStatus = options.batchStatus;
   }
 }
+
+/**
+ * Raised when the gateway reports that the selected provider does not
+ * support a requested capability (e.g. moderation).
+ *
+ * Detected by matching the gateway's 400 body detail against the
+ * well-known phrasing `"does not support moderation"` (extended in the
+ * future for other capabilities).
+ */
+export class UnsupportedCapabilityError extends AnyLLMError {
+  static override defaultMessage = "The selected provider does not support this capability";
+
+  /** Capability that was requested (e.g. `"moderation"`, `"multimodal_moderation"`). */
+  readonly capability: string;
+
+  /** Provider name reported by the gateway (e.g. `"anthropic"`). */
+  readonly provider: string;
+
+  constructor(options: AnyLLMErrorOptions & { capability: string; provider: string }) {
+    super(options);
+    this.capability = options.capability;
+    this.provider = options.provider;
+  }
+}

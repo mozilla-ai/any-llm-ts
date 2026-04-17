@@ -32,6 +32,7 @@ import {
   InsufficientFundsError,
   ModelNotFoundError,
   RateLimitError,
+  UnsupportedCapabilityError,
   UpstreamProviderError,
 } from "./errors.js";
 import type {
@@ -40,10 +41,21 @@ import type {
   CreateBatchParams,
   GatewayClientOptions,
   ListBatchesOptions,
+  ModerationCreateParams,
+  ModerationCreateResponse,
+  ModerationResponseExt,
 } from "./types.js";
 
 const PROVIDER_NAME = "gateway";
 const GATEWAY_HEADER_NAME = "AnyLLM-Key";
+
+/**
+ * Locked phrasing used by the gateway to signal that the selected
+ * provider does not support a moderation request. Matches both the
+ * plain "does not support moderation" and "does not support multimodal
+ * moderation …" forms.
+ */
+const UNSUPPORTED_MODERATION_RE = /does not support (?:multimodal )?moderation/;
 
 const ENV_API_BASE = "GATEWAY_API_BASE";
 const ENV_API_KEY = "GATEWAY_API_KEY";
@@ -87,8 +99,14 @@ export class GatewayClient {
   /** Whether the client is operating in platform mode. */
   readonly platformMode: boolean;
 
-  /** The resolved base URL (with /v1) for direct HTTP calls. */
-  private readonly baseUrl: string;
+  /** Resolved gateway base URL (including `/v1` suffix). */
+  private readonly baseURL: string;
+
+  /** API key for non-platform mode, if set. */
+  private readonly apiKey?: string;
+
+  /** Platform token for platform mode, if set. */
+  private readonly platformToken?: string;
 
   /** Auth headers for batch method direct HTTP calls. */
   private readonly authHeaders: Record<string, string>;
@@ -110,6 +128,8 @@ export class GatewayClient {
       ? rawBase
       : `${rawBase.replace(/\/+$/, "")}/v1`;
 
+    this.baseURL = apiBase;
+
     const platformToken = options.platformToken ?? process.env[ENV_PLATFORM_TOKEN];
     const apiKey = options.apiKey ?? process.env[ENV_API_KEY] ?? "";
 
@@ -121,6 +141,7 @@ export class GatewayClient {
     // 3. Otherwise -> non-platform mode
     if (platformToken && !options.apiKey) {
       this.platformMode = true;
+      this.platformToken = platformToken;
       this.openai = new OpenAI({
         apiKey: platformToken,
         baseURL: apiBase,
@@ -130,6 +151,7 @@ export class GatewayClient {
     } else {
       this.platformMode = false;
       if (apiKey) {
+        this.apiKey = apiKey;
         headers[GATEWAY_HEADER_NAME] = `Bearer ${apiKey}`;
       }
       // In non-platform mode we still need to pass *some* API key to the
@@ -143,8 +165,7 @@ export class GatewayClient {
       });
     }
 
-    // Store for batch method direct HTTP calls
-    this.baseUrl = apiBase;
+    // Store auth headers for batch method direct HTTP calls.
     this.authHeaders = {};
     if (platformToken && !options.apiKey) {
       this.authHeaders.Authorization = `Bearer ${platformToken}`;
@@ -235,6 +256,39 @@ export class GatewayClient {
     }
   }
 
+  // -- Moderation -----------------------------------------------------------
+
+  /**
+   * Run a content moderation check via the gateway.
+   */
+  async moderation(params: ModerationCreateParams): Promise<ModerationCreateResponse>;
+
+  /**
+   * Run a content moderation check with the provider's raw response body
+   * preserved under each result's `provider_raw` field. Bypasses the
+   * OpenAI SDK, which strips unknown fields.
+   */
+  async moderation(
+    params: ModerationCreateParams & { includeRaw: true },
+  ): Promise<ModerationResponseExt>;
+
+  async moderation(
+    params: ModerationCreateParams & { includeRaw?: boolean },
+  ): Promise<ModerationCreateResponse | ModerationResponseExt> {
+    const { includeRaw, ...rest } = params as ModerationCreateParams & {
+      includeRaw?: boolean;
+    };
+    try {
+      if (includeRaw) {
+        return await this.rawModerationFetch(rest as ModerationCreateParams);
+      }
+      return await this.openai.moderations.create(rest as ModerationCreateParams);
+    } catch (error) {
+      this.handleError(error);
+      throw error;
+    }
+  }
+
   // -- Models ---------------------------------------------------------------
 
   /**
@@ -257,14 +311,18 @@ export class GatewayClient {
   // -- Error handling -------------------------------------------------------
 
   /**
-   * Convert OpenAI APIError to typed any-llm exceptions in platform mode.
+   * Convert OpenAI APIError to typed any-llm exceptions.
+   *
+   * Most mappings only apply in platform mode; in non-platform mode the
+   * original error propagates unchanged. The one exception is
+   * {@link UnsupportedCapabilityError}, which is a logical error (the
+   * selected provider cannot perform the requested capability) and
+   * therefore surfaces in both modes.
    *
    * Extracts `Retry-After` and `X-Correlation-ID` response headers when
-   * available. In non-platform mode this is a no-op and the original error
-   * propagates unchanged.
+   * available.
    */
   private handleError(error: unknown): void {
-    if (!this.platformMode) return;
     if (!(error instanceof APIError)) return;
 
     const status = error.status;
@@ -278,6 +336,23 @@ export class GatewayClient {
     if (correlationId) {
       detail = `${detail} (correlation_id=${correlationId})`;
     }
+
+    // Unsupported-capability is a logical error surfaced regardless of mode.
+    if (status === 400 && UNSUPPORTED_MODERATION_RE.test(detail)) {
+      const provider = this.parseUnsupportedProvider(detail);
+      const capability = detail.includes("multimodal") ? "multimodal_moderation" : "moderation";
+      throw new UnsupportedCapabilityError({
+        message: detail,
+        statusCode: status,
+        originalError: error,
+        providerName: PROVIDER_NAME,
+        provider,
+        capability,
+      });
+    }
+
+    // The rest of the mappings only apply in platform mode.
+    if (!this.platformMode) return;
 
     const ErrorClass = STATUS_TO_ERROR[status];
     if (ErrorClass) {
@@ -327,6 +402,20 @@ export class GatewayClient {
     }
 
     // Unrecognized status: let the original error propagate.
+  }
+
+  /**
+   * Parse the provider name out of a gateway 400 detail string like
+   * `"Provider anthropic does not support moderation"`. The OpenAI SDK
+   * often prepends the status code to the message (for example
+   * `"400 Provider anthropic does not support moderation"`), so we
+   * search for the phrase rather than anchoring to the start.
+   *
+   * Returns `"unknown"` if the phrasing does not match.
+   */
+  private parseUnsupportedProvider(detail: string): string {
+    const match = detail.match(/Provider\s+(\S+)\s+does not/);
+    return match ? match[1] : "unknown";
   }
 
   // -- Batch operations -----------------------------------------------------
@@ -414,7 +503,7 @@ export class GatewayClient {
     path: string,
     options?: { body?: unknown },
   ): Promise<T> {
-    const url = `${this.baseUrl}${path}`;
+    const url = `${this.baseURL}${path}`;
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
       ...this.authHeaders,
@@ -499,6 +588,88 @@ export class GatewayClient {
           statusCode: response.status,
           providerName: PROVIDER_NAME,
         });
+    }
+  }
+
+  // -- Moderation raw-fetch helpers ----------------------------------------
+
+  /**
+   * POST /v1/moderations?include_raw=true using a direct fetch.
+   *
+   * The OpenAI SDK strips unknown fields from responses, so we can't use
+   * it when the caller wants to see the provider's raw body. Errors are
+   * routed through {@link buildErrorFromStatus} for consistent mapping.
+   */
+  private async rawModerationFetch(params: ModerationCreateParams): Promise<ModerationResponseExt> {
+    const url = new URL(`${this.baseURL}/moderations`);
+    url.searchParams.set("include_raw", "true");
+
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+      ...this.authHeaders,
+    };
+
+    const response = await fetch(url.toString(), {
+      method: "POST",
+      headers,
+      body: JSON.stringify(params),
+    });
+
+    if (!response.ok) {
+      const body = await response.text();
+      let detail = body;
+      try {
+        const parsed = JSON.parse(body) as { detail?: string };
+        if (parsed.detail) detail = parsed.detail;
+      } catch {
+        // Body is not JSON; keep the raw text as the detail.
+      }
+      throw this.buildErrorFromStatus(response.status, detail, response.headers);
+    }
+
+    return (await response.json()) as ModerationResponseExt;
+  }
+
+  /**
+   * Map a non-OK HTTP response from the raw moderation fetch to a typed
+   * any-llm error, mirroring the logic in {@link handleError}. Inlined
+   * (rather than reusing handleError) to avoid synthesizing an APIError.
+   */
+  private buildErrorFromStatus(status: number, detail: string, headers: Headers): Error {
+    const correlationId = headers.get("x-correlation-id") ?? undefined;
+    const retryAfter = headers.get("retry-after") ?? undefined;
+    const message = correlationId ? `${detail} (correlation_id=${correlationId})` : detail;
+
+    const base = { message, statusCode: status, providerName: PROVIDER_NAME };
+
+    if (status === 400 && UNSUPPORTED_MODERATION_RE.test(detail)) {
+      const provider = this.parseUnsupportedProvider(detail);
+      const capability = detail.includes("multimodal") ? "multimodal_moderation" : "moderation";
+      return new UnsupportedCapabilityError({ ...base, provider, capability });
+    }
+
+    // Remaining mappings only apply in platform mode (same policy as the
+    // SDK path). In non-platform mode, surface a generic Error.
+    if (!this.platformMode) {
+      return new Error(`${status}: ${detail}`);
+    }
+
+    switch (status) {
+      case 401:
+      case 403:
+        return new AuthenticationError(base);
+      case 402:
+        return new InsufficientFundsError(base);
+      case 404:
+        return new ModelNotFoundError(base);
+      case 429:
+        return new RateLimitError({ ...base, retryAfter });
+      case 502:
+        return new UpstreamProviderError(base);
+      case 504:
+        return new GatewayTimeoutError(base);
+      default:
+        return new Error(`${status}: ${detail}`);
     }
   }
 }
