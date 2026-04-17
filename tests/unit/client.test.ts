@@ -404,7 +404,6 @@ describe("GatewayClient methods delegate to OpenAI client", () => {
     };
     const spy = vi
       .spyOn(client.openai.moderations, "create")
-      // biome-ignore lint/suspicious/noExplicitAny: test mock
       .mockResolvedValue(mockResponse as any);
 
     const params = { model: "openai:omni-moderation-latest", input: "hello" };
@@ -419,13 +418,11 @@ describe("GatewayClient methods delegate to OpenAI client", () => {
       id: "m",
       model: "x",
       results: [],
-      // biome-ignore lint/suspicious/noExplicitAny: test mock
     } as any);
 
     await client.moderation({
       model: "openai:omni-moderation-latest",
       input: "x",
-      // biome-ignore lint/suspicious/noExplicitAny: includeRaw is an SDK extension
     } as any);
     expect(spy.mock.calls[0][0]).not.toHaveProperty("includeRaw");
   });
@@ -481,7 +478,6 @@ describe("GatewayClient moderation includeRaw path", () => {
       model: "openai:omni-moderation-latest",
       input: "x",
       includeRaw: true,
-      // biome-ignore lint/suspicious/noExplicitAny: includeRaw is an SDK extension
     } as any);
 
     expect(openaiSpy).not.toHaveBeenCalled();
@@ -521,7 +517,6 @@ describe("GatewayClient moderation includeRaw path", () => {
       model: "openai:omni-moderation-latest",
       input: "x",
       includeRaw: true,
-      // biome-ignore lint/suspicious/noExplicitAny: includeRaw is an SDK extension
     } as any);
 
     const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
@@ -550,7 +545,6 @@ describe("GatewayClient moderation includeRaw path", () => {
         model: "anthropic:claude-3-haiku",
         input: "x",
         includeRaw: true,
-        // biome-ignore lint/suspicious/noExplicitAny: includeRaw is an SDK extension
       } as any),
     ).rejects.toMatchObject({
       name: "UnsupportedCapabilityError",
@@ -594,7 +588,6 @@ describe("GatewayClient moderation error mapping", () => {
     await expect(
       client.moderation({
         model: "mistral:mistral-moderation-latest",
-        // biome-ignore lint/suspicious/noExplicitAny: multimodal input mock
         input: [{ type: "image_url", image_url: { url: "..." } }] as any,
       }),
     ).rejects.toMatchObject({

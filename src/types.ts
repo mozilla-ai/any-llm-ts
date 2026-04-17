@@ -32,16 +32,14 @@ export type {
   CreateEmbeddingResponse,
   EmbeddingCreateParams,
 } from "openai/resources/embeddings";
-
+// Models
+export type { Model } from "openai/resources/models";
 // Moderation — re-exported from the OpenAI SDK for the default path.
 export type {
   Moderation,
   ModerationCreateParams,
   ModerationCreateResponse,
 } from "openai/resources/moderations";
-
-// Models
-export type { Model } from "openai/resources/models";
 
 // Responses API
 export type {
