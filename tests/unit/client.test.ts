@@ -1068,3 +1068,80 @@ describe("GatewayClient batch auth modes", () => {
     expect(headers["X-Custom"]).toBe("custom-value");
   });
 });
+
+describe("GatewayClient rerank", () => {
+  it("calls POST /v1/rerank via openai.post()", async () => {
+    const client = new GatewayClient({
+      apiBase: "https://gw.example.com",
+      apiKey: "test-key",
+    });
+
+    const mockResponse = {
+      id: "rerank-123",
+      results: [
+        { index: 0, relevance_score: 0.95 },
+        { index: 1, relevance_score: 0.3 },
+      ],
+      usage: { total_tokens: 100 },
+    };
+
+    vi.spyOn(client.openai, "post" as any).mockResolvedValue(mockResponse);
+
+    const result = await client.rerank({
+      model: "cohere:rerank-v3.5",
+      query: "test query",
+      documents: ["doc1", "doc2"],
+      top_n: 2,
+    });
+
+    expect(result.id).toBe("rerank-123");
+    expect(result.results).toHaveLength(2);
+    expect(result.results[0].relevance_score).toBe(0.95);
+    expect(result.usage?.total_tokens).toBe(100);
+
+    expect(client.openai.post).toHaveBeenCalledWith("/rerank", {
+      body: {
+        model: "cohere:rerank-v3.5",
+        query: "test query",
+        documents: ["doc1", "doc2"],
+        top_n: 2,
+      },
+    });
+  });
+
+  it("maps errors via handleError in platform mode", async () => {
+    const client = new GatewayClient({
+      apiBase: "https://gw.example.com",
+      platformToken: "pk_test",
+    });
+
+    const error = makeAPIError(401, "Unauthorized");
+    vi.spyOn(client.openai, "post" as any).mockRejectedValue(error);
+
+    await expect(
+      client.rerank({
+        model: "cohere:rerank-v3.5",
+        query: "test",
+        documents: ["doc1"],
+      }),
+    ).rejects.toThrow(AuthenticationError);
+  });
+
+  it("does not remap errors in non-platform mode", async () => {
+    const client = new GatewayClient({
+      apiBase: "https://gw.example.com",
+      apiKey: "test-key",
+    });
+
+    const error = makeAPIError(401, "Unauthorized");
+    vi.spyOn(client.openai, "post" as any).mockRejectedValue(error);
+
+    await expect(
+      client.rerank({
+        model: "cohere:rerank-v3.5",
+        query: "test",
+        documents: ["doc1"],
+      }),
+    ).rejects.toThrow(APIError);
+  });
+});
