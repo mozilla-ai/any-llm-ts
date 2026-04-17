@@ -758,7 +758,7 @@ describe("GatewayClient batch auth modes", () => {
     vi.unstubAllGlobals();
   });
 
-  it("uses X-AnyLLM-Key header in non-platform mode", async () => {
+  it("uses AnyLLM-Key header in non-platform mode", async () => {
     const client = new GatewayClient({
       apiBase: "http://localhost:8000",
       apiKey: "my-key",
@@ -775,7 +775,7 @@ describe("GatewayClient batch auth modes", () => {
 
     const [, init] = mockFetch.mock.calls[0];
     const headers = init?.headers as Record<string, string>;
-    expect(headers["X-AnyLLM-Key"]).toBe("Bearer my-key");
+    expect(headers["AnyLLM-Key"]).toBe("Bearer my-key");
     expect(headers.Authorization).toBeUndefined();
   });
 
