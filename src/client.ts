@@ -49,6 +49,14 @@ import type {
 const PROVIDER_NAME = "gateway";
 const GATEWAY_HEADER_NAME = "AnyLLM-Key";
 
+/**
+ * Locked phrasing used by the gateway to signal that the selected
+ * provider does not support a moderation request. Matches both the
+ * plain "does not support moderation" and "does not support multimodal
+ * moderation …" forms.
+ */
+const UNSUPPORTED_MODERATION_RE = /does not support (?:multimodal )?moderation/;
+
 const ENV_API_BASE = "GATEWAY_API_BASE";
 const ENV_API_KEY = "GATEWAY_API_KEY";
 const ENV_PLATFORM_TOKEN = "GATEWAY_PLATFORM_TOKEN";
@@ -330,7 +338,7 @@ export class GatewayClient {
     }
 
     // Unsupported-capability is a logical error surfaced regardless of mode.
-    if (status === 400 && detail.includes("does not support moderation")) {
+    if (status === 400 && UNSUPPORTED_MODERATION_RE.test(detail)) {
       const provider = this.parseUnsupportedProvider(detail);
       const capability = detail.includes("multimodal") ? "multimodal_moderation" : "moderation";
       throw new UnsupportedCapabilityError({
@@ -398,16 +406,16 @@ export class GatewayClient {
 
   /**
    * Parse the provider name out of a gateway 400 detail string like
-   * `"Provider anthropic does not support moderation"`. Returns
-   * `"unknown"` if the phrasing does not match.
+   * `"Provider anthropic does not support moderation"`. The OpenAI SDK
+   * often prepends the status code to the message (for example
+   * `"400 Provider anthropic does not support moderation"`), so we
+   * search for the phrase rather than anchoring to the start.
+   *
+   * Returns `"unknown"` if the phrasing does not match.
    */
   private parseUnsupportedProvider(detail: string): string {
-    const prefix = "Provider ";
-    if (!detail.startsWith(prefix)) return "unknown";
-    const rest = detail.slice(prefix.length);
-    const end = rest.indexOf(" does not");
-    if (end <= 0) return "unknown";
-    return rest.slice(0, end);
+    const match = detail.match(/Provider\s+(\S+)\s+does not/);
+    return match ? match[1] : "unknown";
   }
 
   // -- Batch operations -----------------------------------------------------
@@ -634,7 +642,7 @@ export class GatewayClient {
 
     const base = { message, statusCode: status, providerName: PROVIDER_NAME };
 
-    if (status === 400 && detail.includes("does not support moderation")) {
+    if (status === 400 && UNSUPPORTED_MODERATION_RE.test(detail)) {
       const provider = this.parseUnsupportedProvider(detail);
       const capability = detail.includes("multimodal") ? "multimodal_moderation" : "moderation";
       return new UnsupportedCapabilityError({ ...base, provider, capability });
