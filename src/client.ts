@@ -248,6 +248,39 @@ export class GatewayClient {
     }
   }
 
+  // -- Moderation -----------------------------------------------------------
+
+  /**
+   * Run a content moderation check via the gateway.
+   */
+  async moderation(params: ModerationCreateParams): Promise<ModerationCreateResponse>;
+
+  /**
+   * Run a content moderation check with the provider's raw response body
+   * preserved under each result's `provider_raw` field. Bypasses the
+   * OpenAI SDK, which strips unknown fields.
+   */
+  async moderation(
+    params: ModerationCreateParams & { includeRaw: true },
+  ): Promise<ModerationResponseExt>;
+
+  async moderation(
+    params: ModerationCreateParams & { includeRaw?: boolean },
+  ): Promise<ModerationCreateResponse | ModerationResponseExt> {
+    const { includeRaw, ...rest } = params as ModerationCreateParams & {
+      includeRaw?: boolean;
+    };
+    try {
+      if (includeRaw) {
+        return await this.rawModerationFetch(rest as ModerationCreateParams);
+      }
+      return await this.openai.moderations.create(rest as ModerationCreateParams);
+    } catch (error) {
+      this.handleError(error);
+      throw error;
+    }
+  }
+
   // -- Models ---------------------------------------------------------------
 
   /**
@@ -547,6 +580,88 @@ export class GatewayClient {
           statusCode: response.status,
           providerName: PROVIDER_NAME,
         });
+    }
+  }
+
+  // -- Moderation raw-fetch helpers ----------------------------------------
+
+  /**
+   * POST /v1/moderations?include_raw=true using a direct fetch.
+   *
+   * The OpenAI SDK strips unknown fields from responses, so we can't use
+   * it when the caller wants to see the provider's raw body. Errors are
+   * routed through {@link buildErrorFromStatus} for consistent mapping.
+   */
+  private async rawModerationFetch(params: ModerationCreateParams): Promise<ModerationResponseExt> {
+    const url = new URL(`${this.baseURL}/moderations`);
+    url.searchParams.set("include_raw", "true");
+
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+      ...this.authHeaders,
+    };
+
+    const response = await fetch(url.toString(), {
+      method: "POST",
+      headers,
+      body: JSON.stringify(params),
+    });
+
+    if (!response.ok) {
+      const body = await response.text();
+      let detail = body;
+      try {
+        const parsed = JSON.parse(body) as { detail?: string };
+        if (parsed.detail) detail = parsed.detail;
+      } catch {
+        // Body is not JSON; keep the raw text as the detail.
+      }
+      throw this.buildErrorFromStatus(response.status, detail, response.headers);
+    }
+
+    return (await response.json()) as ModerationResponseExt;
+  }
+
+  /**
+   * Map a non-OK HTTP response from the raw moderation fetch to a typed
+   * any-llm error, mirroring the logic in {@link handleError}. Inlined
+   * (rather than reusing handleError) to avoid synthesizing an APIError.
+   */
+  private buildErrorFromStatus(status: number, detail: string, headers: Headers): Error {
+    const correlationId = headers.get("x-correlation-id") ?? undefined;
+    const retryAfter = headers.get("retry-after") ?? undefined;
+    const message = correlationId ? `${detail} (correlation_id=${correlationId})` : detail;
+
+    const base = { message, statusCode: status, providerName: PROVIDER_NAME };
+
+    if (status === 400 && detail.includes("does not support moderation")) {
+      const provider = this.parseUnsupportedProvider(detail);
+      const capability = detail.includes("multimodal") ? "multimodal_moderation" : "moderation";
+      return new UnsupportedCapabilityError({ ...base, provider, capability });
+    }
+
+    // Remaining mappings only apply in platform mode (same policy as the
+    // SDK path). In non-platform mode, surface a generic Error.
+    if (!this.platformMode) {
+      return new Error(`${status}: ${detail}`);
+    }
+
+    switch (status) {
+      case 401:
+      case 403:
+        return new AuthenticationError(base);
+      case 402:
+        return new InsufficientFundsError(base);
+      case 404:
+        return new ModelNotFoundError(base);
+      case 429:
+        return new RateLimitError({ ...base, retryAfter });
+      case 502:
+        return new UpstreamProviderError(base);
+      case 504:
+        return new GatewayTimeoutError(base);
+      default:
+        return new Error(`${status}: ${detail}`);
     }
   }
 }
