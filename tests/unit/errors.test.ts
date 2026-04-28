@@ -1,31 +1,31 @@
 import { describe, expect, it } from "vitest";
 import {
-  AnyLLMError,
   AuthenticationError,
   BatchNotCompleteError,
   GatewayTimeoutError,
   InsufficientFundsError,
   ModelNotFoundError,
+  OtariError,
   RateLimitError,
   UnsupportedCapabilityError,
   UpstreamProviderError,
 } from "../../src/errors.js";
 
-describe("AnyLLMError", () => {
+describe("OtariError", () => {
   it("uses default message when none is provided", () => {
-    const err = new AnyLLMError();
+    const err = new OtariError();
     expect(err.message).toBe("An error occurred");
-    expect(err.name).toBe("AnyLLMError");
+    expect(err.name).toBe("OtariError");
   });
 
   it("uses custom message when provided", () => {
-    const err = new AnyLLMError({ message: "custom" });
+    const err = new OtariError({ message: "custom" });
     expect(err.message).toBe("custom");
   });
 
   it("stores statusCode, originalError, and providerName", () => {
     const orig = new Error("original");
-    const err = new AnyLLMError({
+    const err = new OtariError({
       message: "test",
       statusCode: 500,
       originalError: orig,
@@ -37,7 +37,7 @@ describe("AnyLLMError", () => {
   });
 
   it("toString includes provider name when set", () => {
-    const err = new AnyLLMError({
+    const err = new OtariError({
       message: "fail",
       providerName: "gateway",
     });
@@ -45,14 +45,14 @@ describe("AnyLLMError", () => {
   });
 
   it("toString returns just message when no provider name", () => {
-    const err = new AnyLLMError({ message: "fail" });
+    const err = new OtariError({ message: "fail" });
     expect(err.toString()).toBe("fail");
   });
 
   it("is an instance of Error", () => {
-    const err = new AnyLLMError();
+    const err = new OtariError();
     expect(err).toBeInstanceOf(Error);
-    expect(err).toBeInstanceOf(AnyLLMError);
+    expect(err).toBeInstanceOf(OtariError);
   });
 });
 
@@ -63,8 +63,8 @@ describe("AuthenticationError", () => {
     expect(err.name).toBe("AuthenticationError");
   });
 
-  it("is an instance of AnyLLMError", () => {
-    expect(new AuthenticationError()).toBeInstanceOf(AnyLLMError);
+  it("is an instance of OtariError", () => {
+    expect(new AuthenticationError()).toBeInstanceOf(OtariError);
   });
 });
 
@@ -75,8 +75,8 @@ describe("ModelNotFoundError", () => {
     expect(err.name).toBe("ModelNotFoundError");
   });
 
-  it("is an instance of AnyLLMError", () => {
-    expect(new ModelNotFoundError()).toBeInstanceOf(AnyLLMError);
+  it("is an instance of OtariError", () => {
+    expect(new ModelNotFoundError()).toBeInstanceOf(OtariError);
   });
 });
 
@@ -87,8 +87,8 @@ describe("InsufficientFundsError", () => {
     expect(err.name).toBe("InsufficientFundsError");
   });
 
-  it("is an instance of AnyLLMError", () => {
-    expect(new InsufficientFundsError()).toBeInstanceOf(AnyLLMError);
+  it("is an instance of OtariError", () => {
+    expect(new InsufficientFundsError()).toBeInstanceOf(OtariError);
   });
 });
 
@@ -109,8 +109,8 @@ describe("RateLimitError", () => {
     expect(err.retryAfter).toBeUndefined();
   });
 
-  it("is an instance of AnyLLMError", () => {
-    expect(new RateLimitError()).toBeInstanceOf(AnyLLMError);
+  it("is an instance of OtariError", () => {
+    expect(new RateLimitError()).toBeInstanceOf(OtariError);
   });
 });
 
@@ -152,9 +152,9 @@ describe("BatchNotCompleteError", () => {
     expect(err.batchStatus).toBeUndefined();
   });
 
-  it("is an instance of AnyLLMError", () => {
+  it("is an instance of OtariError", () => {
     const err = new BatchNotCompleteError();
-    expect(err).toBeInstanceOf(AnyLLMError);
+    expect(err).toBeInstanceOf(OtariError);
     expect(err).toBeInstanceOf(Error);
   });
 
@@ -188,11 +188,11 @@ describe("UnsupportedCapabilityError", () => {
     expect(err.provider).toBe("mistral");
   });
 
-  it("is an instance of AnyLLMError", () => {
+  it("is an instance of OtariError", () => {
     const err = new UnsupportedCapabilityError({
       capability: "moderation",
       provider: "anthropic",
     });
-    expect(err).toBeInstanceOf(AnyLLMError);
+    expect(err).toBeInstanceOf(OtariError);
   });
 });

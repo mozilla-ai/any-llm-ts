@@ -1,7 +1,7 @@
 {
-  "name": "@mozilla-ai/any-llm",
+  "name": "@mozilla-ai/otari",
   "version": "0.1.0",
-  "description": "TypeScript SDK for the any-llm gateway",
+  "description": "TypeScript SDK for the otari gateway",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -33,11 +33,11 @@
     "ai",
     "gateway",
     "openai",
-    "any-llm"
+    "otari"
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/mozilla-ai/any-llm-ts"
+    "url": "https://github.com/mozilla-ai/otari-ts"
   },
   "license": "Apache-2.0",
   "engines": {

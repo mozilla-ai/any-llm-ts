@@ -1,13 +1,13 @@
 import { APIError } from "openai";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { GatewayClient } from "../../src/client.js";
+import { OtariClient } from "../../src/client.js";
 import {
-  AnyLLMError,
   AuthenticationError,
   BatchNotCompleteError,
   GatewayTimeoutError,
   InsufficientFundsError,
   ModelNotFoundError,
+  OtariError,
   RateLimitError,
   UnsupportedCapabilityError,
   UpstreamProviderError,
@@ -23,7 +23,7 @@ function makeAPIError(
   return APIError.generate(status, { message }, message, h);
 }
 
-describe("GatewayClient constructor", () => {
+describe("OtariClient constructor", () => {
   const envBackup = { ...process.env };
 
   afterEach(() => {
@@ -33,18 +33,18 @@ describe("GatewayClient constructor", () => {
 
   it("throws when apiBase is not provided and env is unset", () => {
     delete process.env.GATEWAY_API_BASE;
-    expect(() => new GatewayClient()).toThrow("api_base is required");
+    expect(() => new OtariClient()).toThrow("api_base is required");
   });
 
   it("uses apiBase from options", () => {
-    const client = new GatewayClient({
+    const client = new OtariClient({
       apiBase: "http://localhost:8000",
     });
     expect(client.openai.baseURL).toBe("http://localhost:8000/v1");
   });
 
   it("does not double-append /v1 if already present", () => {
-    const client = new GatewayClient({
+    const client = new OtariClient({
       apiBase: "http://localhost:8000/v1",
     });
     expect(client.openai.baseURL).toBe("http://localhost:8000/v1");
@@ -52,13 +52,13 @@ describe("GatewayClient constructor", () => {
 
   it("falls back to GATEWAY_API_BASE env var", () => {
     process.env.GATEWAY_API_BASE = "http://env-gateway:9000";
-    const client = new GatewayClient();
+    const client = new OtariClient();
     expect(client.openai.baseURL).toBe("http://env-gateway:9000/v1");
   });
 
   describe("platform mode", () => {
     it("activates when platformToken is provided", () => {
-      const client = new GatewayClient({
+      const client = new OtariClient({
         apiBase: "http://localhost:8000",
         platformToken: "tk_test123",
       });
@@ -70,7 +70,7 @@ describe("GatewayClient constructor", () => {
 
     it("activates via GATEWAY_PLATFORM_TOKEN env when no apiKey is set", () => {
       process.env.GATEWAY_PLATFORM_TOKEN = "tk_env_token";
-      const client = new GatewayClient({
+      const client = new OtariClient({
         apiBase: "http://localhost:8000",
       });
       expect(client.platformMode).toBe(true);
@@ -79,7 +79,7 @@ describe("GatewayClient constructor", () => {
 
     it("does not activate when apiKey option is also provided", () => {
       process.env.GATEWAY_PLATFORM_TOKEN = "tk_env_token";
-      const client = new GatewayClient({
+      const client = new OtariClient({
         apiBase: "http://localhost:8000",
         apiKey: "my-key",
       });
@@ -91,19 +91,19 @@ describe("GatewayClient constructor", () => {
   describe("non-platform mode", () => {
     it("is the default when no platform token is available", () => {
       delete process.env.GATEWAY_PLATFORM_TOKEN;
-      const client = new GatewayClient({
+      const client = new OtariClient({
         apiBase: "http://localhost:8000",
       });
       expect(client.platformMode).toBe(false);
     });
 
-    it("sends apiKey via AnyLLM-Key header", () => {
-      const client = new GatewayClient({
+    it("sends apiKey via Otari-Key header", () => {
+      const client = new OtariClient({
         apiBase: "http://localhost:8000",
         apiKey: "my-key",
       });
       expect(client.platformMode).toBe(false);
-      // The AnyLLM-Key header is set as a default header on the OpenAI client.
+      // The Otari-Key header is set as a default header on the OpenAI client.
       // We can verify by inspecting the internal _options or defaultHeaders.
       // For this test we just verify the mode is correct.
     });
@@ -111,7 +111,7 @@ describe("GatewayClient constructor", () => {
     it("falls back to GATEWAY_API_KEY env var", () => {
       process.env.GATEWAY_API_KEY = "env-key";
       delete process.env.GATEWAY_PLATFORM_TOKEN;
-      const client = new GatewayClient({
+      const client = new OtariClient({
         apiBase: "http://localhost:8000",
       });
       expect(client.platformMode).toBe(false);
@@ -119,7 +119,7 @@ describe("GatewayClient constructor", () => {
   });
 
   it("forwards defaultHeaders", () => {
-    const client = new GatewayClient({
+    const client = new OtariClient({
       apiBase: "http://localhost:8000",
       defaultHeaders: { "X-Custom": "value" },
     });
@@ -127,11 +127,11 @@ describe("GatewayClient constructor", () => {
   });
 });
 
-describe("GatewayClient error handling (platform mode)", () => {
-  let client: GatewayClient;
+describe("OtariClient error handling (platform mode)", () => {
+  let client: OtariClient;
 
   beforeEach(() => {
-    client = new GatewayClient({
+    client = new OtariClient({
       apiBase: "http://localhost:8000",
       platformToken: "tk_test",
     });
@@ -271,9 +271,9 @@ describe("GatewayClient error handling (platform mode)", () => {
   });
 });
 
-describe("GatewayClient error handling (non-platform mode)", () => {
+describe("OtariClient error handling (non-platform mode)", () => {
   it("does not map errors in non-platform mode", async () => {
-    const client = new GatewayClient({
+    const client = new OtariClient({
       apiBase: "http://localhost:8000",
       apiKey: "my-key",
     });
@@ -290,23 +290,23 @@ describe("GatewayClient error handling (non-platform mode)", () => {
       }),
     ).rejects.toThrow(APIError);
 
-    // Should NOT be an AnyLLMError.
+    // Should NOT be an OtariError.
     try {
       await client.completion({
         model: "openai:gpt-4o-mini",
         messages: [{ role: "user", content: "hi" }],
       });
     } catch (err) {
-      expect(err).not.toBeInstanceOf(AnyLLMError);
+      expect(err).not.toBeInstanceOf(OtariError);
     }
   });
 });
 
-describe("GatewayClient methods delegate to OpenAI client", () => {
-  let client: GatewayClient;
+describe("OtariClient methods delegate to OpenAI client", () => {
+  let client: OtariClient;
 
   beforeEach(() => {
-    client = new GatewayClient({
+    client = new OtariClient({
       apiBase: "http://localhost:8000",
       platformToken: "tk_test",
     });
@@ -440,7 +440,7 @@ describe("GatewayClient methods delegate to OpenAI client", () => {
   });
 });
 
-describe("GatewayClient moderation includeRaw path", () => {
+describe("OtariClient moderation includeRaw path", () => {
   const originalFetch = globalThis.fetch;
 
   afterEach(() => {
@@ -468,7 +468,7 @@ describe("GatewayClient moderation includeRaw path", () => {
     });
     vi.stubGlobal("fetch", fetchMock);
 
-    const client = new GatewayClient({
+    const client = new OtariClient({
       apiBase: "https://gw.example.com",
       apiKey: "k",
     });
@@ -487,7 +487,7 @@ describe("GatewayClient moderation includeRaw path", () => {
     expect(init.method).toBe("POST");
     const headers = init.headers as Record<string, string>;
     expect(headers["Content-Type"]).toBe("application/json");
-    expect(headers["AnyLLM-Key"]).toBe("Bearer k");
+    expect(headers["Otari-Key"]).toBe("Bearer k");
     const body = JSON.parse(init.body as string);
     expect(body).not.toHaveProperty("includeRaw");
     expect(body).toMatchObject({
@@ -508,7 +508,7 @@ describe("GatewayClient moderation includeRaw path", () => {
     });
     vi.stubGlobal("fetch", fetchMock);
 
-    const client = new GatewayClient({
+    const client = new OtariClient({
       apiBase: "https://gw.example.com",
       platformToken: "tk_123",
     });
@@ -522,7 +522,7 @@ describe("GatewayClient moderation includeRaw path", () => {
     const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     const headers = init.headers as Record<string, string>;
     expect(headers.Authorization).toBe("Bearer tk_123");
-    expect(headers["AnyLLM-Key"]).toBeUndefined();
+    expect(headers["Otari-Key"]).toBeUndefined();
   });
 
   it("maps a non-OK raw response to UnsupportedCapabilityError", async () => {
@@ -535,7 +535,7 @@ describe("GatewayClient moderation includeRaw path", () => {
     });
     vi.stubGlobal("fetch", fetchMock);
 
-    const client = new GatewayClient({
+    const client = new OtariClient({
       apiBase: "https://gw.example.com",
       platformToken: "tk_123",
     });
@@ -554,9 +554,9 @@ describe("GatewayClient moderation includeRaw path", () => {
   });
 });
 
-describe("GatewayClient moderation error mapping", () => {
+describe("OtariClient moderation error mapping", () => {
   it("maps 400 'does not support moderation' to UnsupportedCapabilityError (platform mode)", async () => {
-    const client = new GatewayClient({
+    const client = new OtariClient({
       apiBase: "http://localhost:8000",
       platformToken: "tk_test",
     });
@@ -577,7 +577,7 @@ describe("GatewayClient moderation error mapping", () => {
   });
 
   it("maps 400 'does not support multimodal moderation' to the multimodal capability", async () => {
-    const client = new GatewayClient({
+    const client = new OtariClient({
       apiBase: "http://localhost:8000",
       platformToken: "tk_test",
     });
@@ -598,7 +598,7 @@ describe("GatewayClient moderation error mapping", () => {
   });
 
   it("UnsupportedCapabilityError surfaces even in non-platform mode", async () => {
-    const client = new GatewayClient({
+    const client = new OtariClient({
       apiBase: "http://localhost:8000",
       apiKey: "k",
     });
@@ -615,7 +615,7 @@ describe("GatewayClient moderation error mapping", () => {
   });
 
   it("does not map unrelated 400 errors in non-platform mode", async () => {
-    const client = new GatewayClient({
+    const client = new OtariClient({
       apiBase: "http://localhost:8000",
       apiKey: "k",
     });
@@ -629,7 +629,7 @@ describe("GatewayClient moderation error mapping", () => {
       });
       expect.unreachable("should have thrown");
     } catch (err) {
-      expect(err).not.toBeInstanceOf(AnyLLMError);
+      expect(err).not.toBeInstanceOf(OtariError);
       expect(err).toBeInstanceOf(APIError);
     }
   });
@@ -654,8 +654,8 @@ function mockFetchResponse(
   } as globalThis.Response;
 }
 
-describe("GatewayClient batch methods", () => {
-  let client: GatewayClient;
+describe("OtariClient batch methods", () => {
+  let client: OtariClient;
   let mockFetch: ReturnType<
     typeof vi.fn<(input: RequestInfo | URL, init?: RequestInit) => Promise<Response>>
   >;
@@ -663,7 +663,7 @@ describe("GatewayClient batch methods", () => {
   beforeEach(() => {
     mockFetch = vi.fn();
     vi.stubGlobal("fetch", mockFetch);
-    client = new GatewayClient({
+    client = new OtariClient({
       apiBase: "http://localhost:8000",
       apiKey: "test-key",
     });
@@ -811,8 +811,8 @@ describe("GatewayClient batch methods", () => {
   });
 });
 
-describe("GatewayClient batch error handling", () => {
-  let client: GatewayClient;
+describe("OtariClient batch error handling", () => {
+  let client: OtariClient;
   let mockFetch: ReturnType<
     typeof vi.fn<(input: RequestInfo | URL, init?: RequestInit) => Promise<Response>>
   >;
@@ -820,7 +820,7 @@ describe("GatewayClient batch error handling", () => {
   beforeEach(() => {
     mockFetch = vi.fn();
     vi.stubGlobal("fetch", mockFetch);
-    client = new GatewayClient({
+    client = new OtariClient({
       apiBase: "http://localhost:8000",
       apiKey: "test-key",
     });
@@ -850,16 +850,16 @@ describe("GatewayClient batch error handling", () => {
     }
   });
 
-  it("404 throws AnyLLMError with upgrade message", async () => {
+  it("404 throws OtariError with upgrade message", async () => {
     mockFetch.mockResolvedValue(mockFetchResponse(404, { detail: "Not supported" }));
 
     try {
       await client.retrieveBatch("batch_abc", "openai");
       expect.unreachable("should have thrown");
     } catch (err) {
-      expect(err).toBeInstanceOf(AnyLLMError);
-      expect((err as AnyLLMError).message).toContain("Upgrade your gateway");
-      expect((err as AnyLLMError).statusCode).toBe(404);
+      expect(err).toBeInstanceOf(OtariError);
+      expect((err as OtariError).message).toContain("Upgrade your gateway");
+      expect((err as OtariError).statusCode).toBe(404);
     }
   });
 
@@ -870,8 +870,8 @@ describe("GatewayClient batch error handling", () => {
       await client.retrieveBatch("batch_abc", "openai");
       expect.unreachable("should have thrown");
     } catch (err) {
-      expect(err).toBeInstanceOf(AnyLLMError);
-      expect((err as AnyLLMError).message).toBe("Batch not found");
+      expect(err).toBeInstanceOf(OtariError);
+      expect((err as OtariError).message).toBe("Batch not found");
     }
   });
 
@@ -922,27 +922,27 @@ describe("GatewayClient batch error handling", () => {
     );
   });
 
-  it("422 throws AnyLLMError", async () => {
+  it("422 throws OtariError", async () => {
     mockFetch.mockResolvedValue(mockFetchResponse(422, { detail: "Unsupported provider" }));
 
     try {
       await client.createBatch({ model: "bad:model", requests: [] });
       expect.unreachable("should have thrown");
     } catch (err) {
-      expect(err).toBeInstanceOf(AnyLLMError);
-      expect((err as AnyLLMError).statusCode).toBe(422);
+      expect(err).toBeInstanceOf(OtariError);
+      expect((err as OtariError).statusCode).toBe(422);
     }
   });
 
-  it("unrecognized status throws AnyLLMError", async () => {
+  it("unrecognized status throws OtariError", async () => {
     mockFetch.mockResolvedValue(mockFetchResponse(418, { detail: "I'm a teapot" }));
 
     try {
       await client.createBatch({ model: "openai:gpt-4o-mini", requests: [] });
       expect.unreachable("should have thrown");
     } catch (err) {
-      expect(err).toBeInstanceOf(AnyLLMError);
-      expect((err as AnyLLMError).statusCode).toBe(418);
+      expect(err).toBeInstanceOf(OtariError);
+      expect((err as OtariError).statusCode).toBe(418);
     }
   });
 
@@ -977,13 +977,13 @@ describe("GatewayClient batch error handling", () => {
       await client.createBatch({ model: "openai:gpt-4o-mini", requests: [] });
       expect.unreachable("should have thrown");
     } catch (err) {
-      expect(err).toBeInstanceOf(AnyLLMError);
-      expect((err as AnyLLMError).message).toBe("Internal Server Error");
+      expect(err).toBeInstanceOf(OtariError);
+      expect((err as OtariError).message).toBe("Internal Server Error");
     }
   });
 });
 
-describe("GatewayClient batch auth modes", () => {
+describe("OtariClient batch auth modes", () => {
   let mockFetch: ReturnType<
     typeof vi.fn<(input: RequestInfo | URL, init?: RequestInit) => Promise<Response>>
   >;
@@ -997,8 +997,8 @@ describe("GatewayClient batch auth modes", () => {
     vi.unstubAllGlobals();
   });
 
-  it("uses AnyLLM-Key header in non-platform mode", async () => {
-    const client = new GatewayClient({
+  it("uses Otari-Key header in non-platform mode", async () => {
+    const client = new OtariClient({
       apiBase: "http://localhost:8000",
       apiKey: "my-key",
     });
@@ -1014,12 +1014,12 @@ describe("GatewayClient batch auth modes", () => {
 
     const [, init] = mockFetch.mock.calls[0];
     const headers = init?.headers as Record<string, string>;
-    expect(headers["AnyLLM-Key"]).toBe("Bearer my-key");
+    expect(headers["Otari-Key"]).toBe("Bearer my-key");
     expect(headers.Authorization).toBeUndefined();
   });
 
   it("uses Authorization header in platform mode", async () => {
-    const client = new GatewayClient({
+    const client = new OtariClient({
       apiBase: "http://localhost:8000",
       platformToken: "tk_platform",
     });
@@ -1040,11 +1040,11 @@ describe("GatewayClient batch auth modes", () => {
     expect(batchCall).toBeDefined();
     const headers = batchCall![1]?.headers as Record<string, string>;
     expect(headers.Authorization).toBe("Bearer tk_platform");
-    expect(headers["X-AnyLLM-Key"]).toBeUndefined();
+    expect(headers["X-Otari-Key"]).toBeUndefined();
   });
 
   it("includes defaultHeaders in batch requests", async () => {
-    const client = new GatewayClient({
+    const client = new OtariClient({
       apiBase: "http://localhost:8000",
       apiKey: "my-key",
       defaultHeaders: { "X-Custom": "custom-value" },
@@ -1069,9 +1069,9 @@ describe("GatewayClient batch auth modes", () => {
   });
 });
 
-describe("GatewayClient rerank", () => {
+describe("OtariClient rerank", () => {
   it("calls POST /v1/rerank via openai.post()", async () => {
-    const client = new GatewayClient({
+    const client = new OtariClient({
       apiBase: "https://gw.example.com",
       apiKey: "test-key",
     });
@@ -1110,7 +1110,7 @@ describe("GatewayClient rerank", () => {
   });
 
   it("maps errors via handleError in platform mode", async () => {
-    const client = new GatewayClient({
+    const client = new OtariClient({
       apiBase: "https://gw.example.com",
       platformToken: "pk_test",
     });
@@ -1128,7 +1128,7 @@ describe("GatewayClient rerank", () => {
   });
 
   it("does not remap errors in non-platform mode", async () => {
-    const client = new GatewayClient({
+    const client = new OtariClient({
       apiBase: "https://gw.example.com",
       apiKey: "test-key",
     });
