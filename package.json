@@ -37,7 +37,7 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/mozilla-ai/otari-ts"
+    "url": "https://github.com/mozilla-ai/otari-sdk-ts"
   },
   "license": "Apache-2.0",
   "engines": {
