@@ -1,5 +1,5 @@
 /**
- * Configuration and type re-exports for the any-llm gateway client.
+ * Configuration and type re-exports for the otari gateway client.
  */
 
 import type OpenAI from "openai";
@@ -131,15 +131,15 @@ export interface RerankResponse {
 }
 
 /**
- * Options for constructing a {@link GatewayClient}.
+ * Options for constructing a {@link OtariClient}.
  *
  * Auth resolution order (mirrors the Python GatewayProvider):
  *  1. Explicit `platformToken` -> platform mode (Bearer token in Authorization header)
  *  2. `GATEWAY_PLATFORM_TOKEN` env var (when no `apiKey`) -> platform mode
- *  3. `apiKey` or `GATEWAY_API_KEY` env var -> non-platform mode (AnyLLM-Key header)
+ *  3. `apiKey` or `GATEWAY_API_KEY` env var -> non-platform mode (Otari-Key header)
  *  4. No credentials -> non-platform mode, no auth header
  */
-export interface GatewayClientOptions {
+export interface OtariClientOptions {
   /**
    * Base URL of the gateway (e.g. "http://localhost:8000").
    * Falls back to the `GATEWAY_API_BASE` environment variable.
@@ -148,7 +148,7 @@ export interface GatewayClientOptions {
 
   /**
    * API key for non-platform mode.
-   * Sent via the `AnyLLM-Key: Bearer <key>` header.
+   * Sent via the `Otari-Key: Bearer <key>` header.
    * Falls back to the `GATEWAY_API_KEY` environment variable.
    */
   apiKey?: string;
@@ -176,7 +176,7 @@ export interface GatewayClientOptions {
 
 /**
  * Extended moderation result with optional `provider_raw`. Returned by
- * {@link GatewayClient.moderation} only when the caller passes
+ * {@link OtariClient.moderation} only when the caller passes
  * `{ includeRaw: true }`.
  */
 export interface ModerationResultExt {

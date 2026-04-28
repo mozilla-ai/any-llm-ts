@@ -1,27 +1,27 @@
 /**
- * Exception hierarchy for any-llm gateway errors.
+ * Exception hierarchy for otari gateway errors.
  *
  * Mirrors the Python SDK's exception classes used by the gateway provider.
  * In platform mode, OpenAI APIError status codes are mapped to these typed
  * errors so callers can handle specific failure modes.
  */
 
-export interface AnyLLMErrorOptions {
+export interface OtariErrorOptions {
   message?: string;
   statusCode?: number;
   originalError?: Error;
   providerName?: string;
 }
 
-export class AnyLLMError extends Error {
+export class OtariError extends Error {
   static defaultMessage: string = "An error occurred";
 
   readonly statusCode?: number;
   readonly originalError?: Error;
   readonly providerName?: string;
 
-  constructor(options: AnyLLMErrorOptions = {}) {
-    const message = options.message ?? (new.target as typeof AnyLLMError).defaultMessage;
+  constructor(options: OtariErrorOptions = {}) {
+    const message = options.message ?? (new.target as typeof OtariError).defaultMessage;
     super(message);
     this.name = new.target.name;
     this.statusCode = options.statusCode;
@@ -38,50 +38,50 @@ export class AnyLLMError extends Error {
 }
 
 /** Raised when authentication with the gateway fails (HTTP 401, 403). */
-export class AuthenticationError extends AnyLLMError {
+export class AuthenticationError extends OtariError {
   static override defaultMessage = "Authentication failed";
 }
 
 /** Raised when the requested model is not found (HTTP 404). */
-export class ModelNotFoundError extends AnyLLMError {
+export class ModelNotFoundError extends OtariError {
   static override defaultMessage = "Model not found";
 }
 
 /** Raised when the user's budget or credits are exhausted (HTTP 402). */
-export class InsufficientFundsError extends AnyLLMError {
+export class InsufficientFundsError extends OtariError {
   static override defaultMessage = "Insufficient funds or budget exceeded";
 }
 
 /** Raised when the API rate limit is exceeded (HTTP 429). */
-export class RateLimitError extends AnyLLMError {
+export class RateLimitError extends OtariError {
   static override defaultMessage = "Rate limit exceeded";
 
   /** Value of the Retry-After header, when the server provides one. */
   readonly retryAfter?: string;
 
-  constructor(options: AnyLLMErrorOptions & { retryAfter?: string } = {}) {
+  constructor(options: OtariErrorOptions & { retryAfter?: string } = {}) {
     super(options);
     this.retryAfter = options.retryAfter;
   }
 }
 
 /** Raised when the upstream provider is unreachable or errors (HTTP 502). */
-export class UpstreamProviderError extends AnyLLMError {
+export class UpstreamProviderError extends OtariError {
   static override defaultMessage = "Upstream provider error";
 }
 
 /** Raised when the gateway times out waiting for the upstream provider (HTTP 504). */
-export class GatewayTimeoutError extends AnyLLMError {
+export class GatewayTimeoutError extends OtariError {
   static override defaultMessage = "Gateway timeout waiting for upstream provider";
 }
 
 /** Raised when attempting to retrieve results for a batch that is not yet complete (HTTP 409). */
-export class BatchNotCompleteError extends AnyLLMError {
+export class BatchNotCompleteError extends OtariError {
   static override defaultMessage = "Batch is not yet complete";
   readonly batchId?: string;
   readonly batchStatus?: string;
 
-  constructor(options: AnyLLMErrorOptions & { batchId?: string; batchStatus?: string } = {}) {
+  constructor(options: OtariErrorOptions & { batchId?: string; batchStatus?: string } = {}) {
     super(options);
     this.batchId = options.batchId;
     this.batchStatus = options.batchStatus;
@@ -96,7 +96,7 @@ export class BatchNotCompleteError extends AnyLLMError {
  * well-known phrasing `"does not support moderation"` (extended in the
  * future for other capabilities).
  */
-export class UnsupportedCapabilityError extends AnyLLMError {
+export class UnsupportedCapabilityError extends OtariError {
   static override defaultMessage = "The selected provider does not support this capability";
 
   /** Capability that was requested (e.g. `"moderation"`, `"multimodal_moderation"`). */
@@ -105,7 +105,7 @@ export class UnsupportedCapabilityError extends AnyLLMError {
   /** Provider name reported by the gateway (e.g. `"anthropic"`). */
   readonly provider: string;
 
-  constructor(options: AnyLLMErrorOptions & { capability: string; provider: string }) {
+  constructor(options: OtariErrorOptions & { capability: string; provider: string }) {
     super(options);
     this.capability = options.capability;
     this.provider = options.provider;

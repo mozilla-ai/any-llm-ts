@@ -1,32 +1,32 @@
 <p align="center">
   <picture>
-    <img src="https://raw.githubusercontent.com/mozilla-ai/any-llm/refs/heads/main/docs/public/images/any-llm-logo-mark.png" width="20%" alt="Project logo"/>
+    <img src="https://raw.githubusercontent.com/mozilla-ai/otari/refs/heads/main/docs/public/images/otari-logo-mark.png" width="20%" alt="Project logo"/>
   </picture>
 </p>
 
 <div align="center">
 
-# any-llm (TypeScript)
+# otari (TypeScript)
 
 ![Node.js 18+](https://img.shields.io/badge/node-18%2B-blue.svg)
-[![npm](https://img.shields.io/npm/v/@mozilla-ai/any-llm)](https://www.npmjs.com/package/@mozilla-ai/any-llm)
+[![npm](https://img.shields.io/npm/v/@mozilla-ai/otari)](https://www.npmjs.com/package/@mozilla-ai/otari)
 <a href="https://discord.gg/4gf3zXrQUc">
     <img src="https://img.shields.io/static/v1?label=Chat%20on&message=Discord&color=blue&logo=Discord&style=flat-square" alt="Discord">
 </a>
 
-**TypeScript client for [any-llm-gateway](https://github.com/mozilla-ai/any-llm).**
+**TypeScript client for [otari-gateway](https://github.com/mozilla-ai/otari).**
 Communicate with any LLM provider through the gateway using a single, typed interface.
 
-[Python SDK](https://github.com/mozilla-ai/any-llm) | [Documentation](https://mozilla-ai.github.io/any-llm/) | [Platform (Beta)](https://any-llm.ai/)
+[Python SDK](https://github.com/mozilla-ai/otari) | [Documentation](https://mozilla-ai.github.io/otari/) | [Platform (Beta)](https://otari.ai/)
 
 </div>
 
 ## Quickstart
 
 ```typescript
-import { GatewayClient } from "@mozilla-ai/any-llm";
+import { OtariClient } from "@mozilla-ai/otari";
 
-const client = new GatewayClient({
+const client = new OtariClient({
   apiBase: "http://localhost:8000",
   platformToken: "your-token-here",
 });
@@ -46,12 +46,12 @@ console.log(response.choices[0].message.content);
 ### Requirements
 
 - Node.js 18 or newer
-- A running [any-llm-gateway](https://mozilla-ai.github.io/any-llm/gateway/overview/) instance
+- A running [otari-gateway](https://mozilla-ai.github.io/otari/gateway/overview/) instance
 
 ### Install
 
 ```bash
-npm install @mozilla-ai/any-llm
+npm install @mozilla-ai/otari
 ```
 
 ### Setting Up Credentials
@@ -67,9 +67,9 @@ export GATEWAY_API_KEY="your-key-here"
 
 Alternatively, pass credentials directly when creating the client (see [Usage](#usage) examples).
 
-## any-llm-gateway
+## otari-gateway
 
-This TypeScript SDK is a client for [any-llm-gateway](https://github.com/mozilla-ai/any-llm), an **optional** FastAPI-based proxy server that adds enterprise-grade features on top of the core library:
+This TypeScript SDK is a client for [otari-gateway](https://github.com/mozilla-ai/otari), an **optional** FastAPI-based proxy server that adds enterprise-grade features on top of the core library:
 
 - **Budget Management** - Enforce spending limits with automatic daily, weekly, or monthly resets
 - **API Key Management** - Issue, revoke, and monitor virtual API keys without exposing provider credentials
@@ -85,14 +85,14 @@ docker run \
   -e GATEWAY_MASTER_KEY="your-secure-master-key" \
   -e OPENAI_API_KEY="your-api-key" \
   -p 8000:8000 \
-  ghcr.io/mozilla-ai/any-llm/gateway:latest
+  ghcr.io/mozilla-ai/otari/gateway:latest
 ```
 
-> **Note:** You can use a specific release version instead of `latest` (e.g., `1.2.0`). See [available versions](https://github.com/orgs/mozilla-ai/packages/container/package/any-llm%2Fgateway).
+> **Note:** You can use a specific release version instead of `latest` (e.g., `1.2.0`). See [available versions](https://github.com/orgs/mozilla-ai/packages/container/package/otari%2Fgateway).
 
 ### Managed Platform (Beta)
 
-Prefer a hosted experience? The [any-llm platform](https://any-llm.ai/) provides a managed control plane for keys, usage tracking, and cost visibility across providers, while still building on the same `any-llm` interfaces.
+Prefer a hosted experience? The [otari platform](https://otari.ai/) provides a managed control plane for keys, usage tracking, and cost visibility across providers, while still building on the same `otari` interfaces.
 
 ## Usage
 
@@ -105,7 +105,7 @@ The client supports two authentication modes, matching the Python SDK:
 Uses a Bearer token in the standard Authorization header:
 
 ```typescript
-const client = new GatewayClient({
+const client = new OtariClient({
   apiBase: "http://localhost:8000",
   platformToken: "tk_your_platform_token",
 });
@@ -113,10 +113,10 @@ const client = new GatewayClient({
 
 #### Non-Platform Mode
 
-Sends the API key via a custom `AnyLLM-Key` header:
+Sends the API key via a custom `Otari-Key` header:
 
 ```typescript
-const client = new GatewayClient({
+const client = new OtariClient({
   apiBase: "http://localhost:8000",
   apiKey: "your-api-key",
 });
@@ -128,7 +128,7 @@ When no explicit credentials are provided, the client reads from environment var
 
 ```typescript
 // Uses GATEWAY_API_BASE, GATEWAY_PLATFORM_TOKEN, or GATEWAY_API_KEY
-const client = new GatewayClient();
+const client = new OtariClient();
 ```
 
 ### Chat Completions
@@ -182,7 +182,7 @@ console.log(result.data[0].embedding);
 ### Moderation
 
 ```typescript
-import { GatewayClient, UnsupportedCapabilityError } from "@mozilla-ai/any-llm";
+import { OtariClient, UnsupportedCapabilityError } from "@mozilla-ai/otari";
 
 try {
   const result = await client.moderation({
@@ -228,7 +228,7 @@ for (const model of models) {
 In platform mode, HTTP errors are mapped to typed exceptions:
 
 ```typescript
-import { GatewayClient, AuthenticationError, RateLimitError } from "@mozilla-ai/any-llm";
+import { OtariClient, AuthenticationError, RateLimitError } from "@mozilla-ai/otari";
 
 try {
   const response = await client.completion({
@@ -256,7 +256,7 @@ try {
 
 `UnsupportedCapabilityError` surfaces in both platform and non-platform modes; the other mappings are platform-mode only.
 
-## Why choose `any-llm`?
+## Why choose `otari`?
 
 - **Simple, unified interface** - Single client for all providers through the gateway, switch models with just a string change
 - **Developer friendly** - Full TypeScript types for better IDE support and clear, actionable error messages
@@ -288,15 +288,15 @@ npm run build
 
 ## Documentation
 
-- **[Full Documentation](https://mozilla-ai.github.io/any-llm/)** - Complete guides and API reference
-- **[Supported Providers](https://mozilla-ai.github.io/any-llm/providers/)** - List of all supported LLM providers
-- **[Gateway Documentation](https://mozilla-ai.github.io/any-llm/gateway/overview/)** - Gateway setup and deployment
-- **[Python SDK](https://github.com/mozilla-ai/any-llm)** - The full Python SDK with direct provider access
-- **[any-llm Platform (Beta)](https://any-llm.ai/)** - Hosted control plane for key management, usage tracking, and cost visibility
+- **[Full Documentation](https://mozilla-ai.github.io/otari/)** - Complete guides and API reference
+- **[Supported Providers](https://mozilla-ai.github.io/otari/providers/)** - List of all supported LLM providers
+- **[Gateway Documentation](https://mozilla-ai.github.io/otari/gateway/overview/)** - Gateway setup and deployment
+- **[Python SDK](https://github.com/mozilla-ai/otari)** - The full Python SDK with direct provider access
+- **[otari Platform (Beta)](https://otari.ai/)** - Hosted control plane for key management, usage tracking, and cost visibility
 
 ## Contributing
 
-We welcome contributions from developers of all skill levels! Please see the [Contributing Guide](https://github.com/mozilla-ai/any-llm/blob/main/CONTRIBUTING.md) or open an issue to discuss changes.
+We welcome contributions from developers of all skill levels! Please see the [Contributing Guide](https://github.com/mozilla-ai/otari/blob/main/CONTRIBUTING.md) or open an issue to discuss changes.
 
 ## License
 

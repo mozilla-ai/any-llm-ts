@@ -1,11 +1,11 @@
 /**
- * @mozilla-ai/any-llm - TypeScript SDK for the any-llm gateway.
+ * @mozilla-ai/otari - TypeScript SDK for the otari gateway.
  *
  * @example
  * ```ts
- * import { GatewayClient } from "@mozilla-ai/any-llm";
+ * import { OtariClient } from "@mozilla-ai/otari";
  *
- * const client = new GatewayClient({
+ * const client = new OtariClient({
  *   apiBase: "http://localhost:8000",
  *   platformToken: "tk_xxx",
  * });
@@ -17,15 +17,15 @@
  * ```
  */
 
-export { GatewayClient } from "./client.js";
-export type { AnyLLMErrorOptions } from "./errors.js";
+export { OtariClient } from "./client.js";
+export type { OtariErrorOptions } from "./errors.js";
 export {
-  AnyLLMError,
   AuthenticationError,
   BatchNotCompleteError,
   GatewayTimeoutError,
   InsufficientFundsError,
   ModelNotFoundError,
+  OtariError,
   RateLimitError,
   UnsupportedCapabilityError,
   UpstreamProviderError,
@@ -45,7 +45,6 @@ export type {
   CreateBatchParams,
   CreateEmbeddingResponse,
   EmbeddingCreateParams,
-  GatewayClientOptions,
   ListBatchesOptions,
   Model,
   Moderation,
@@ -53,6 +52,7 @@ export type {
   ModerationCreateResponse,
   ModerationResponseExt,
   ModerationResultExt,
+  OtariClientOptions,
   RerankMeta,
   RerankParams,
   RerankResponse,

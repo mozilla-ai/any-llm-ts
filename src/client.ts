@@ -1,5 +1,5 @@
 /**
- * GatewayClient: TypeScript client for the any-llm gateway.
+ * OtariClient: TypeScript client for the otari gateway.
  *
  * Wraps the OpenAI Node.js SDK, adding gateway-specific auth handling
  * and error mapping for platform mode.
@@ -25,12 +25,12 @@ import type {
 import type { Stream } from "openai/streaming";
 
 import {
-  AnyLLMError,
   AuthenticationError,
   BatchNotCompleteError,
   GatewayTimeoutError,
   InsufficientFundsError,
   ModelNotFoundError,
+  OtariError,
   RateLimitError,
   UnsupportedCapabilityError,
   UpstreamProviderError,
@@ -39,17 +39,17 @@ import type {
   BatchResult,
   BatchWithProvider,
   CreateBatchParams,
-  GatewayClientOptions,
   ListBatchesOptions,
   ModerationCreateParams,
   ModerationCreateResponse,
   ModerationResponseExt,
+  OtariClientOptions,
   RerankParams,
   RerankResponse,
 } from "./types.js";
 
 const PROVIDER_NAME = "gateway";
-const GATEWAY_HEADER_NAME = "AnyLLM-Key";
+const GATEWAY_HEADER_NAME = "Otari-Key";
 
 /**
  * Locked phrasing used by the gateway to signal that the selected
@@ -71,18 +71,18 @@ const STATUS_TO_ERROR: Record<number, typeof AuthenticationError | typeof ModelN
 };
 
 /**
- * Client for the any-llm gateway.
+ * Client for the otari gateway.
  *
  * Supports two authentication modes (mirroring the Python GatewayProvider):
  *
  * - **Platform mode**: A Bearer token is sent in the standard Authorization
- *   header. Errors are mapped to typed any-llm exceptions.
- * - **Non-platform mode**: An API key is sent via a custom `AnyLLM-Key`
+ *   header. Errors are mapped to typed otari exceptions.
+ * - **Non-platform mode**: An API key is sent via a custom `Otari-Key`
  *   header. Errors from the OpenAI SDK pass through unmodified.
  *
  * @example
  * ```ts
- * const client = new GatewayClient({
+ * const client = new OtariClient({
  *   apiBase: "http://localhost:8000",
  *   platformToken: "tk_xxx",
  * });
@@ -94,7 +94,7 @@ const STATUS_TO_ERROR: Record<number, typeof AuthenticationError | typeof ModelN
  * console.log(res.choices[0].message.content);
  * ```
  */
-export class GatewayClient {
+export class OtariClient {
   /** The underlying OpenAI client instance. */
   readonly openai: OpenAI;
 
@@ -113,7 +113,7 @@ export class GatewayClient {
   /** Auth headers for batch method direct HTTP calls. */
   private readonly authHeaders: Record<string, string>;
 
-  constructor(options: GatewayClientOptions = {}) {
+  constructor(options: OtariClientOptions = {}) {
     const rawBase = options.apiBase ?? process.env[ENV_API_BASE];
 
     if (!rawBase) {
@@ -345,7 +345,7 @@ export class GatewayClient {
   // -- Error handling -------------------------------------------------------
 
   /**
-   * Convert OpenAI APIError to typed any-llm exceptions.
+   * Convert OpenAI APIError to typed otari exceptions.
    *
    * Most mappings only apply in platform mode; in non-platform mode the
    * original error propagates unchanged. The one exception is
@@ -576,7 +576,7 @@ export class GatewayClient {
           providerName: PROVIDER_NAME,
         });
       case 404:
-        throw new AnyLLMError({
+        throw new OtariError({
           message: fullMessage.includes("not found")
             ? fullMessage
             : `This gateway does not support batch operations. Upgrade your gateway. (${fullMessage})`,
@@ -592,7 +592,7 @@ export class GatewayClient {
           batchStatus: extractStatus(message),
         });
       case 422:
-        throw new AnyLLMError({
+        throw new OtariError({
           message: fullMessage,
           statusCode: 422,
           providerName: PROVIDER_NAME,
@@ -617,7 +617,7 @@ export class GatewayClient {
           providerName: PROVIDER_NAME,
         });
       default:
-        throw new AnyLLMError({
+        throw new OtariError({
           message: fullMessage,
           statusCode: response.status,
           providerName: PROVIDER_NAME,
@@ -666,7 +666,7 @@ export class GatewayClient {
 
   /**
    * Map a non-OK HTTP response from the raw moderation fetch to a typed
-   * any-llm error, mirroring the logic in {@link handleError}. Inlined
+   * otari error, mirroring the logic in {@link handleError}. Inlined
    * (rather than reusing handleError) to avoid synthesizing an APIError.
    */
   private buildErrorFromStatus(status: number, detail: string, headers: Headers): Error {
