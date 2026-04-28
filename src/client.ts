@@ -44,6 +44,8 @@ import type {
   ModerationCreateParams,
   ModerationCreateResponse,
   ModerationResponseExt,
+  RerankParams,
+  RerankResponse,
 } from "./types.js";
 
 const PROVIDER_NAME = "gateway";
@@ -302,6 +304,38 @@ export class GatewayClient {
         models.push(model);
       }
       return models;
+    } catch (error) {
+      this.handleError(error);
+      throw error;
+    }
+  }
+
+  // -- Rerank ---------------------------------------------------------------
+
+  /**
+   * Rerank documents by relevance to a query.
+   *
+   * @param params - Rerank parameters including model, query, and documents.
+   * @returns Rerank response with scored and sorted results.
+   * @throws {AuthenticationError} If the API key is invalid.
+   * @throws {RateLimitError} If the rate limit is exceeded.
+   *
+   * @example
+   * ```ts
+   * const result = await client.rerank({
+   *   model: "cohere:rerank-v3.5",
+   *   query: "climate change",
+   *   documents: ["doc1", "doc2", "doc3"],
+   *   top_n: 2,
+   * });
+   * ```
+   */
+  async rerank(params: RerankParams): Promise<RerankResponse> {
+    try {
+      const response = await this.openai.post("/rerank", {
+        body: params,
+      });
+      return response as RerankResponse;
     } catch (error) {
       this.handleError(error);
       throw error;

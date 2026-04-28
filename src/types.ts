@@ -85,6 +85,51 @@ export interface BatchResult {
   results: BatchResultItem[];
 }
 
+// ── Rerank types (no OpenAI SDK equivalent) ──────────────────────
+
+/** Parameters for a rerank request. */
+export interface RerankParams {
+  /** Provider-prefixed model ID, e.g. "cohere:rerank-v3.5" */
+  model: string;
+  /** The search query */
+  query: string;
+  /** Documents to rerank */
+  documents: string[];
+  /** Max results to return */
+  top_n?: number;
+  /** Per-document token truncation limit */
+  max_tokens_per_doc?: number;
+  /** User ID for usage attribution (gateway) */
+  user?: string;
+}
+
+/** A single reranked result. */
+export interface RerankResult {
+  /** Zero-based index into the original documents array */
+  index: number;
+  /** Relevance score (higher = more relevant) */
+  relevance_score: number;
+}
+
+/** Provider-specific billing metadata. */
+export interface RerankMeta {
+  billed_units?: Record<string, number>;
+  tokens?: Record<string, number>;
+}
+
+/** Normalized token usage. */
+export interface RerankUsage {
+  total_tokens?: number;
+}
+
+/** Rerank response from the gateway. */
+export interface RerankResponse {
+  id: string;
+  results: RerankResult[];
+  meta?: RerankMeta;
+  usage?: RerankUsage;
+}
+
 /**
  * Options for constructing a {@link GatewayClient}.
  *
